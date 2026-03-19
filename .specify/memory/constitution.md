@@ -20,7 +20,7 @@ Follow Semantic Versioning 2.0.0. MAJOR/MINOR/PATCH.
 
 ## Base Image
 
-`registry.redhat.io/rhel10/rhel-bootc:latest` — bootc-enabled RHEL 10 for image mode deployments with atomic updates and rollback.
+`registry.redhat.io/rhel10/rhel-bootc:latest` — bootc-enabled RHEL 10 for image mode deployments with atomic updates and rollback. Hosted containers use UBI10 base images (e.g., `registry.redhat.io/ubi10/ubi-init`, `registry.redhat.io/ubi10/ubi-minimal`).
 
 ## Registry
 
