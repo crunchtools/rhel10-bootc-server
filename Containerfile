@@ -38,7 +38,8 @@ RUN systemctl set-default multi-user.target && \
     systemctl enable cockpit.socket podman-auto-update.timer fstrim.timer && \
     ln -s /usr/share/zoneinfo/America/New_York /etc/localtime && \
     cat /etc/bashrc.customizations >> /etc/bashrc && \
-    ln -s /usr/bin/fusermount3 /usr/bin/fusermount
+    ln -s /usr/bin/fusermount3 /usr/bin/fusermount && \
+    rm -f /etc/motd.d/insights-client
 
 # Unregister from RHSM and clean up
 RUN subscription-manager unregister && \
