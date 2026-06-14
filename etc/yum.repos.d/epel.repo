@@ -3,7 +3,7 @@ name=Extra Packages for Enterprise Linux $releasever - $basearch
 # It is much more secure to use the metalink, but if you wish to use a local mirror
 # place its address here.
 #baseurl=https://download.example/pub/epel/$releasever${releasever_minor:+z}/Everything/$basearch/
-metalink=https://mirrors.fedoraproject.org/metalink?repo=epel${releasever_minor:+-z}-$releasever&arch=$basearch
+metalink=https://mirrors.fedoraproject.org/metalink?repo=epel-10&arch=$basearch
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-$releasever_major
 gpgcheck=1
 repo_gpgcheck=0
@@ -16,7 +16,7 @@ name=Extra Packages for Enterprise Linux $releasever - $basearch - Debug
 # It is much more secure to use the metalink, but if you wish to use a local mirror
 # place its address here.
 #baseurl=https://download.example/pub/epel/$releasever${releasever_minor:+z}/Everything/$basearch/debug/
-metalink=https://mirrors.fedoraproject.org/metalink?repo=epel${releasever_minor:+-z}-debug-$releasever&arch=$basearch
+metalink=https://mirrors.fedoraproject.org/metalink?repo=epel-debug-10&arch=$basearch
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-$releasever_major
 gpgcheck=1
 repo_gpgcheck=0
@@ -28,7 +28,7 @@ name=Extra Packages for Enterprise Linux $releasever - $basearch - Source
 # It is much more secure to use the metalink, but if you wish to use a local mirror
 # place its address here.
 #baseurl=https://download.example/pub/epel/$releasever${releasever_minor:+z}/Everything/source/tree/
-metalink=https://mirrors.fedoraproject.org/metalink?repo=epel${releasever_minor:+-z}-source-$releasever&arch=source
+metalink=https://mirrors.fedoraproject.org/metalink?repo=epel-source-10&arch=source
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-$releasever_major
 gpgcheck=1
 repo_gpgcheck=0
