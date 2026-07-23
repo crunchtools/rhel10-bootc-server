@@ -1,4 +1,4 @@
-name: Build and Push rhel10-bootc-corebuild
+name: Build and Push rhel10-bootc-server
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: quay.io/crunchtools/rhel10-bootc-corebuild
+  IMAGE_NAME: quay.io/crunchtools/rhel10-bootc-server
   BUILDAH_FORMAT: oci
 
 jobs:

@@ -1,4 +1,4 @@
-# rhel10-bootc-corebuild Constitution
+# rhel10-bootc-server Constitution
 
 > **Version:** 1.0.0
 > **Ratified:** 2026-03-03
@@ -24,7 +24,7 @@ Follow Semantic Versioning 2.0.0. MAJOR/MINOR/PATCH.
 
 ## Registry
 
-Published to `quay.io/crunchtools/rhel10-bootc-corebuild`.
+Published to `quay.io/crunchtools/rhel10-bootc-server`.
 
 ## RHSM Registration
 
