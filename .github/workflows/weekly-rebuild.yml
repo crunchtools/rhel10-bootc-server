@@ -1,8 +1,6 @@
 name: Weekly Rebuild
 
 on:
-  schedule:
-    - cron: '0 5 * * 0'  # Sunday 1am ET (5am UTC)
   workflow_dispatch:
 
 jobs:
