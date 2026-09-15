@@ -23,12 +23,21 @@ RUN dnf update -y && \
         python3-devel \
         sqlite \
         rclone \
+        rsyslog \
         gh \
         uv \
         sysstat \
         systemd-oomd && \
     dnf clean all && \
     rm -rf /var/cache/dnf /var/cache/yum
+
+# Host log forwarding. rsyslog.conf REPLACES the stock RHEL one, which reads
+# the journal with imjournal -- that module silently stops following after a
+# journal rotation and takes the whole ingest path down with it. Here journald
+# forwards to the syslog socket instead and rsyslog only relays onward.
+COPY etc/rsyslog.conf /etc/rsyslog.conf
+COPY etc/systemd/journald.conf.d/10-forward-to-syslog.conf /etc/systemd/journald.conf.d/10-forward-to-syslog.conf
+COPY etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf /etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf
 
 # Create node/npm/npx symlinks
 RUN ln -s /usr/bin/node-24 /usr/bin/node && \
@@ -39,7 +48,8 @@ RUN ln -s /usr/bin/node-24 /usr/bin/node && \
 RUN systemctl set-default multi-user.target && \
     systemctl enable cockpit.socket podman-auto-update.timer fstrim.timer \
         systemd-oomd.service \
-        sysstat.service && \
+        sysstat.service \
+        rsyslog.service && \
     ln -s /usr/share/zoneinfo/America/New_York /etc/localtime && \
     cat /etc/bashrc.customizations >> /etc/bashrc && \
     ln -s /usr/bin/fusermount3 /usr/bin/fusermount && \
