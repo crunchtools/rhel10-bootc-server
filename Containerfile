@@ -50,6 +50,7 @@ RUN systemctl set-default multi-user.target && \
         systemd-oomd.service \
         sysstat.service \
         rsyslog.service && \
+    ln -s /usr/lib/systemd/system/rsyslog.service /etc/systemd/system/syslog.service && \
     ln -s /usr/share/zoneinfo/America/New_York /etc/localtime && \
     cat /etc/bashrc.customizations >> /etc/bashrc && \
     ln -s /usr/bin/fusermount3 /usr/bin/fusermount && \
