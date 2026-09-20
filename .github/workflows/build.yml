@@ -12,10 +12,16 @@ on:
 env:
   IMAGE_NAME: quay.io/crunchtools/rhel10-bootc-server
   BUILDAH_FORMAT: oci
+  GHCR_IMAGE: ghcr.io/crunchtools/rhel10-bootc-server
 
 jobs:
-  build:
+  build-and-push-quay:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      sha_short: ${{ steps.version.outputs.sha_short }}
     steps:
       - name: Free up runner disk space
         run: |
@@ -67,3 +73,44 @@ jobs:
           podman push ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
           podman push ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.sha_short }}
           podman push ${{ env.IMAGE_NAME }}:latest
+
+      - name: Run Trivy vulnerability scanner
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:latest
+          format: "table"
+          exit-code: "0"
+          severity: "CRITICAL,HIGH"
+
+  build-and-push-ghcr:
+    runs-on: ubuntu-latest
+    needs: build-and-push-quay
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Install skopeo
+        run: |
+          command -v skopeo >/dev/null || {
+            sudo apt-get update -qq && sudo apt-get install -y -qq skopeo
+          }
+
+      # Copy the manifest Quay already holds rather than building again. The
+      # tags come from the Quay job's outputs so the two registries cannot drift
+      # apart, and --all carries every manifest in the list, not just amd64.
+      - name: Copy image from Quay to GHCR
+        run: |
+          for tag in \
+            "${{ needs.build-and-push-quay.outputs.tag }}" \
+            "${{ needs.build-and-push-quay.outputs.sha_short }}" \
+            latest
+          do
+            skopeo copy --all \
+              --src-creds '${{ secrets.QUAY_USERNAME }}:${{ secrets.QUAY_PASSWORD }}' \
+              --dest-creds '${{ github.repository_owner }}:${{ github.token }}' \
+              "docker://${{ env.IMAGE_NAME }}:$tag" \
+              "docker://${{ env.GHCR_IMAGE }}:$tag"
+          done
