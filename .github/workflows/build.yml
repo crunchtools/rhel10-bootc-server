@@ -1,17 +1,29 @@
 name: Build and Push rhel10-bootc-server
 
+# Constitution Section III: dual-push to Quay and GHCR as two separate jobs,
+# gha layer caching on both, Trivy on the published image. RT #1480.
+#
+# bootc specifics, and the reason this still looks like every other repo in the
+# fleet rather than a special case:
+#   * outputs: oci-mediatypes=true keeps the manifest
+#     application/vnd.oci.image.manifest.v1+json, which is what the old
+#     BUILDAH_FORMAT=oci was buying.
+#   * provenance/sbom false stops buildx wrapping the image in an attestation
+#     manifest list. bootc wants a plain manifest, not an index.
+
 on:
   push:
     branches: [main]
     paths:
       - 'Containerfile'
       - 'etc/**'
+      - '.github/workflows/build.yml'
   workflow_call:
   workflow_dispatch:
 
+
 env:
   IMAGE_NAME: quay.io/crunchtools/rhel10-bootc-server
-  BUILDAH_FORMAT: oci
   GHCR_IMAGE: ghcr.io/crunchtools/rhel10-bootc-server
 
 jobs:
@@ -22,6 +34,7 @@ jobs:
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       sha_short: ${{ steps.version.outputs.sha_short }}
+
     steps:
       - name: Free up runner disk space
         run: |
@@ -39,40 +52,45 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to registry.redhat.io
-        uses: redhat-actions/podman-login@v1
+        uses: docker/login-action@v3
         with:
           registry: registry.redhat.io
           username: ${{ secrets.REGISTRY_REDHAT_IO_USER }}
           password: ${{ secrets.REGISTRY_REDHAT_IO_PASSWORD }}
 
-      - name: Log in to quay.io
-        run: |
-          podman login quay.io \
-            -u '${{ secrets.QUAY_USERNAME }}' \
-            -p '${{ secrets.QUAY_PASSWORD }}'
+      - name: Log in to Quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
 
-      - name: Build image with Podman
-        env:
-          RHSM_ACTIVATION_KEY: ${{ secrets.RHSM_ACTIVATION_KEY }}
-          RHSM_ORG_ID: ${{ secrets.RHSM_ORG_ID }}
-        run: |
-          printf '%s' "$RHSM_ACTIVATION_KEY" > activation_key.txt
-          printf '%s' "$RHSM_ORG_ID" > org_id.txt
-          podman build \
-            --secret id=activation_key,src=activation_key.txt \
-            --secret id=org_id,src=org_id.txt \
-            --tag ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }} \
-            --tag ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.sha_short }} \
-            --tag ${{ env.IMAGE_NAME }}:latest \
-            .
-          rm -f activation_key.txt org_id.txt
-
-      - name: Push image to Quay.io
-        run: |
-          podman push ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
-          podman push ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.sha_short }}
-          podman push ${{ env.IMAGE_NAME }}:latest
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Containerfile
+          outputs: type=image,oci-mediatypes=true,push=true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
+            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.sha_short }}
+            ${{ env.IMAGE_NAME }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=RHEL 10 bootc server image (lotor)
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+            org.opencontainers.image.revision=${{ github.sha }}
+          secrets: |
+            activation_key=${{ secrets.RHSM_ACTIVATION_KEY }}
+            org_id=${{ secrets.RHSM_ORG_ID }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Run Trivy vulnerability scanner
         continue-on-error: true
@@ -92,25 +110,50 @@ jobs:
       packages: write
 
     steps:
-      - name: Install skopeo
+      - name: Free up runner disk space
         run: |
-          command -v skopeo >/dev/null || {
-            sudo apt-get update -qq && sudo apt-get install -y -qq skopeo
-          }
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          sudo docker image prune --all --force
+          df -h /
 
-      # Copy the manifest Quay already holds rather than building again. The
-      # tags come from the Quay job's outputs so the two registries cannot drift
-      # apart, and --all carries every manifest in the list, not just amd64.
-      - name: Copy image from Quay to GHCR
-        run: |
-          for tag in \
-            "${{ needs.build-and-push-quay.outputs.tag }}" \
-            "${{ needs.build-and-push-quay.outputs.sha_short }}" \
-            latest
-          do
-            skopeo copy --all \
-              --src-creds '${{ secrets.QUAY_USERNAME }}:${{ secrets.QUAY_PASSWORD }}' \
-              --dest-creds '${{ github.repository_owner }}:${{ github.token }}' \
-              "docker://${{ env.IMAGE_NAME }}:$tag" \
-              "docker://${{ env.GHCR_IMAGE }}:$tag"
-          done
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to registry.redhat.io
+        uses: docker/login-action@v3
+        with:
+          registry: registry.redhat.io
+          username: ${{ secrets.REGISTRY_REDHAT_IO_USER }}
+          password: ${{ secrets.REGISTRY_REDHAT_IO_PASSWORD }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Containerfile
+          outputs: type=image,oci-mediatypes=true,push=true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ env.GHCR_IMAGE }}:${{ needs.build-and-push-quay.outputs.tag }}
+            ${{ env.GHCR_IMAGE }}:${{ needs.build-and-push-quay.outputs.sha_short }}
+            ${{ env.GHCR_IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=RHEL 10 bootc server image (lotor)
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+            org.opencontainers.image.revision=${{ github.sha }}
+          secrets: |
+            activation_key=${{ secrets.RHSM_ACTIVATION_KEY }}
+            org_id=${{ secrets.RHSM_ORG_ID }}
+          cache-from: type=gha
