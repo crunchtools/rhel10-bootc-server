@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-24
+
+### Added
+- petit, the log analyzer, installed from the signed crunchtools
+  repository (crunchtools.github.io/packages). The repo definition and its
+  key ship with the image, next to EPEL's, because the build needs them.
+
 ## [1.0.0] - 2026-09-20
 
 First tagged release. This image has been running in production since before

@@ -10,12 +10,15 @@ RUN --mount=type=secret,id=activation_key \
 # Setup Repositories
 COPY etc/yum.repos.d/epel.repo /etc/yum.repos.d/epel.repo
 COPY etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-10 /etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-10
+COPY etc/yum.repos.d/crunchtools.repo /etc/yum.repos.d/crunchtools.repo
+COPY etc/pki/rpm-gpg/RPM-GPG-KEY-crunchtools /etc/pki/rpm-gpg/RPM-GPG-KEY-crunchtools
 COPY etc/bashrc.customizations /etc/bashrc.customizations
 
 # Combined dnf operations: update and install in one layer with --nodocs
 RUN dnf update -y && \
     dnf install -y --nodocs \
         cockpit \
+        petit \
         git \
         vim-enhanced \
         nodejs24 \
