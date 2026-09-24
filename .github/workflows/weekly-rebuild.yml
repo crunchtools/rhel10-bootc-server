@@ -5,5 +5,11 @@ on:
 
 jobs:
   rebuild:
+    # A called workflow can't hold more than its caller grants, and the
+    # repo default is read-only: without packages: write the GHCR push job
+    # makes the whole run a startup_failure.
+    permissions:
+      contents: read
+      packages: write
     uses: ./.github/workflows/build.yml
     secrets: inherit
