@@ -1,9 +1,9 @@
 # rhel10-bootc-server Constitution
 
-> **Version:** 1.0.0
+> **Version:** 1.0.1
 > **Ratified:** 2026-03-03
 > **Status:** Active
-> **Inherits:** [crunchtools/constitution](https://github.com/crunchtools/constitution) v1.0.0
+> **Inherits:** [crunchtools/constitution](https://github.com/crunchtools/constitution) v1.17.0
 > **Profile:** Container Image
 
 RHEL 10 bootc server image for hosting container workloads. Server-oriented (no GUI/Workstation group). Primary use case: Linode VPS running Podman containers behind Apache reverse proxy.
