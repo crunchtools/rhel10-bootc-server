@@ -41,6 +41,7 @@ RUN dnf update -y && \
 COPY etc/rsyslog.conf /etc/rsyslog.conf
 COPY etc/systemd/journald.conf.d/10-forward-to-syslog.conf /etc/systemd/journald.conf.d/10-forward-to-syslog.conf
 COPY etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf /etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf
+COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/containers.conf.d/50-exec-cleanup.conf
 
 # Create node/npm/npx symlinks
 RUN ln -s /usr/bin/node-24 /usr/bin/node && \
