@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- Constitution is now a v1.18.0 manifest under the Bootc Image profile
+  (was Container Image); it records the host role, units, packages, RHSM,
+  log forwarding and Podman tuning, and drops the stale httpd and weekly-cron
+  entries.
+- Constitution validation pinned to v1.18.0 via `constitution.yml`.
+- Dependabot auto-merges GitHub Actions minor and patch updates.
 - Podman `exit_command_delay` lowered from 300s to 30s (RT #1513). Each API
   exec session keeps two conmon processes alive for that long after the
   command exits, so at 1-minute Nagios check intervals the default held
