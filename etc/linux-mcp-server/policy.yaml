@@ -1,0 +1,29 @@
+# Authorization policy for linux-mcp-server (RT#1568).
+#
+# Required, not optional: on the http transport a server with no policy file
+# denies every call. There is no auth provider behind it either, because
+# upstream offers only OAuth-shaped ones (google, github, jwt via a JWKS
+# endpoint, introspection) and the single caller is already pinned to one
+# address. So the perimeter is the network and every rule here matches
+# all_users.
+#
+# That perimeter is NOT in this image and cannot be: it is an nftables rule in
+# the host's /etc/nftables-gloval.conf admitting one source address on one
+# bridge interface to this server's port, ahead of that file's broader
+# per-subnet accepts. If you are looking for the access control, it is there,
+# not here. See RT#1568.
+
+rules:
+  # Everything this server does, it does on the host it runs on.
+  - host: localhost
+    tools: ["*"]
+    all_users: true
+    action: local
+
+  # And it reaches no other machine. No ssh key is configured and host mode is
+  # local-only, so this is belt and braces -- but a policy that only ever
+  # grants is a policy that widens by accident.
+  - host: "*"
+    tools: ["*"]
+    all_users: true
+    action: deny

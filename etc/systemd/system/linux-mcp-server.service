@@ -1,0 +1,80 @@
+[Unit]
+Description=Linux MCP Server (host administration for Josui Prime, RT#1568)
+Documentation=https://rhel-lightspeed.github.io/linux-mcp-server/
+After=network-online.target
+Wants=network-online.target
+# The env file is per-host and never in this image, because one of the five
+# things in it is a credential. A host that was not given one does not start
+# this service. It holds, and nothing else:
+#
+#   LINUX_MCP_HOST        the one address to bind -- never 0.0.0.0 or ::
+#   LINUX_MCP_PORT        the port the nftables fence admits the gateway to
+#   LINUX_MCP_ALLOW_FROM  the gateway's address, as the fence must pin it
+#   LINUX_MCP_ALLOW_IF    the bridge interface, as the fence must pin it
+#   OPENROUTER_API_KEY    the gatekeeper's credential
+#
+# The last three exist so the preflight can check the host's firewall against
+# what this service believes about it, rather than trusting that someone
+# loaded the right rule.
+ConditionPathExists=/etc/linux-mcp-server/linux-mcp.env
+
+[Service]
+Type=exec
+User=root
+EnvironmentFile=/etc/linux-mcp-server/linux-mcp.env
+
+# The shape of the deployment is here, in the image, where it is versioned and
+# reviewed. Only what differs per host -- the bind address, the port and the
+# gatekeeper key -- comes from the env file. Note that command line options
+# beat environment variables in this server, so anything set here cannot be
+# loosened by editing that file on a host.
+#
+# --transport http matters most: the default is stdio, and under systemd there
+# is no client on stdin, so a unit that leaves it out starts a server that
+# serves nobody.
+ExecStart=/usr/bin/linux-mcp-server \
+    --transport http \
+    --path /mcp \
+    --host-mode local-only \
+    --toolset both \
+    --policy-path /etc/linux-mcp-server/policy.yaml \
+    --allowed-log-paths /var/log/messages,/var/log/secure,/var/log/audit/audit.log \
+    --log-output files \
+    --log-dir /var/log/linux-mcp-server \
+    --log-retention-days 120 \
+    --gatekeeper.provider openrouter \
+    --gatekeeper.model openai/gpt-oss-120b
+
+# Refuses to start on a wildcard bind, and refuses to start unless the host's
+# nftables fence is loaded AND admits exactly one source on one interface to
+# this port while dropping it for everyone else. Both are this port's access
+# control and neither is something systemd or the server checks for itself.
+#
+# It reads the environment itself rather than taking ${LINUX_MCP_HOST} from
+# this file: systemd expands its own ${VAR} before anything else runs and has
+# no ${VAR:-default}, so the inline shell one-liner this replaced would have
+# tested an empty string and refused every start.
+ExecStartPre=/usr/libexec/linux-mcp-server-preflight
+
+Restart=always
+RestartSec=10
+
+# No ProtectSystem, PrivateDevices, ReadOnlyPaths or the rest, on purpose:
+# this service administers the host it runs on, and a copy fenced off from the
+# host could not do the thing it was installed for.
+#
+# The controls sit outside the unit, and the shape is unusual enough to say so
+# plainly -- root on the host, reachable from a container network, holding a
+# script-execution tool. It binds one address on a container bridge; the
+# host's /etc/nftables-gloval.conf admits only the Trentina gateway's address
+# on that bridge's interface to this port and drops it everywhere else; every
+# call arrives through that gateway's judging and audit; and upstream's
+# gatekeeper model reviews each script before it runs.
+#
+# Only the last of those is in this image. The nftables rule is host config
+# and has to be in place BEFORE the env file below exists, because that file
+# is what lets this unit start -- that ordering is the deployment's job, not
+# systemd's.
+
+[Install]
+WantedBy=multi-user.target

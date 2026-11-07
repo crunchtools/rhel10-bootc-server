@@ -43,6 +43,51 @@ COPY etc/systemd/journald.conf.d/10-forward-to-syslog.conf /etc/systemd/journald
 COPY etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf /etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf
 COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/containers.conf.d/50-exec-cleanup.conf
 
+# linux-mcp-server: host administration for the Josui Prime agent, reached
+# only through the Trentina gateway (RT#1568). It is in the image rather than
+# installed by hand because /usr and /opt are read-only here and because the
+# one service that exists to repair this host should survive rebuilding it.
+#
+# Pinned. This runs as root, and a floating version is not a thing to find out
+# about at boot.
+#
+# Not enabled: it needs /etc/linux-mcp-server/linux-mcp.env, which holds the
+# gatekeeper API key and is per-host, so the unit carries a ConditionPathExists
+# and a host without that file simply does not start it.
+RUN UV_TOOL_DIR=/usr/lib/linux-mcp-server UV_TOOL_BIN_DIR=/usr/bin \
+        uv tool install linux-mcp-server==1.8.0 && \
+    rm -rf /root/.cache
+
+COPY etc/linux-mcp-server/policy.yaml /etc/linux-mcp-server/policy.yaml
+COPY etc/libexec/linux-mcp-server-preflight /usr/libexec/linux-mcp-server-preflight
+COPY etc/libexec/testdata /usr/share/linux-mcp-server/testdata
+RUN chmod 0755 /usr/libexec/linux-mcp-server-preflight
+
+# Self-test the preflight at build time. It is access control in a script:
+# the IPv6 unspecified address has enough spellings that "looks right" is not
+# evidence, and the fence check is the thing standing between this port and
+# every container on the bridge. The fixtures are nftables' own JSON, taken
+# from the live table and then broken eleven ways; they stay in the image so
+# the same check can be re-run on a host.
+RUN set -e; \
+    export LINUX_MCP_PORT=8034 LINUX_MCP_ALLOW_FROM=10.89.0.89 LINUX_MCP_ALLOW_IF=podman1; \
+    T=/usr/share/linux-mcp-server/testdata; \
+    LINUX_MCP_HOST=10.0.0.1 /usr/libexec/linux-mcp-server-preflight --bind-only; \
+    for bad in 0.0.0.0 :: ::0 0:0:0:0:0:0:0:0 not-an-ip ""; do \
+        if LINUX_MCP_HOST="$bad" /usr/libexec/linux-mcp-server-preflight --bind-only 2>/dev/null; then \
+            echo "preflight accepted a bind address it must refuse: '$bad'" >&2; exit 1; \
+        fi; \
+    done; \
+    export LINUX_MCP_HOST=10.89.0.1; \
+    /usr/libexec/linux-mcp-server-preflight --table-json "$T/fence-good.json"; \
+    for bad in accept-any-source accept-range drop-first drop-conditional \
+               drop-off-hook drop-one-address drop-other-source drop-udp \
+               extra-rule no-accept no-drop; do \
+        if /usr/libexec/linux-mcp-server-preflight --table-json "$T/fence-$bad.json" 2>/dev/null; then \
+            echo "preflight accepted a firewall table it must refuse: $bad" >&2; exit 1; \
+        fi; \
+    done
+
 # Create node/npm/npx symlinks
 RUN ln -s /usr/bin/node-24 /usr/bin/node && \
     ln -s /usr/bin/npm-24 /usr/bin/npm && \

@@ -1,0 +1,247 @@
+#!/usr/bin/python3
+"""Preflight for linux-mcp-server (RT#1568).
+
+Two refusals, both access control, both things systemd cannot express and the
+server does not check for itself:
+
+1. A specific bind address. This port's entire access control is "one address
+   on one bridge, fenced by nftables". A wildcard bind turns a root service
+   holding a script-execution tool into one reachable from everywhere this
+   host is, and nothing downstream would notice.
+
+2. The fence is loaded and is actually a fence. The nftables rule lives in
+   host config and cannot ship in the image, so the ordering -- fence first,
+   then the env file that lets this unit start -- was otherwise only a
+   deployment convention. Checking it here makes it a precondition.
+
+Settings come from the environment, which systemd has already loaded from the
+EnvironmentFile. Deliberately not taken through systemd's own ${VAR}
+substitution in the unit: systemd expands those before anything else runs and
+has no ${VAR:-default}, so the inline shell one-liner this replaced would have
+tested an empty string and refused every start.
+
+Usage: linux-mcp-server-preflight [--bind-only | --table-json FILE]
+  --bind-only       checks the address and skips the fence.
+  --table-json FILE reads the nftables JSON from FILE instead of running nft,
+                    so the rule-shape logic -- which is the access control --
+                    can be tested against tables that must be refused without
+                    loading them on a live host. Both are used by the image
+                    build's self-test.
+"""
+
+import ipaddress
+import json
+import os
+import subprocess
+import sys
+
+TABLE = ("inet", "linux_mcp")
+NFT = "/usr/sbin/nft"
+
+
+def die(msg):
+    print(f"linux-mcp-server preflight: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def env(name):
+    value = os.environ.get(name, "")
+    if not value:
+        die(f"{name} is unset")
+    return value
+
+
+def check_bind_address():
+    raw = env("LINUX_MCP_HOST")
+    try:
+        addr = ipaddress.ip_address(raw)
+    except ValueError:
+        die(f"LINUX_MCP_HOST {raw!r} is not an IP address")
+    # is_unspecified rather than a list of spellings: :: alone has several
+    # (::0, 0:0:0:0:0:0:0:0, ...) and naming a few of them reads like a check
+    # while being a sieve.
+    if addr.is_unspecified:
+        die(f"LINUX_MCP_HOST {raw} is a wildcard bind")
+
+
+def split(doc):
+    """Return (rules, input_chains) from an nft JSON document.
+
+    Only chains that are filter chains hooked on input can stop a packet
+    arriving at this service, so rules anywhere else are not a fence however
+    they are written.
+    """
+    objects = doc.get("nftables", [])
+    input_chains = {
+        o["chain"]["name"] for o in objects
+        if "chain" in o
+        and o["chain"].get("type") == "filter"
+        and o["chain"].get("hook") == "input"
+    }
+    return [o["rule"] for o in objects if "rule" in o], input_chains
+
+
+def load_table(path=None):
+    if path is not None:
+        try:
+            with open(path) as handle:
+                return split(json.load(handle))
+        except (OSError, json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
+            die(f"could not read {path}: {exc}")
+    try:
+        out = subprocess.run(
+            [NFT, "-j", "list", "table", *TABLE],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        die(f"could not run {NFT}: {exc}")
+    if out.returncode != 0:
+        detail = (out.stderr or "").strip()
+        die(f"could not read nftables table {TABLE[0]} {TABLE[1]}"
+            f"{': ' + detail if detail else ''} -- if it is simply not loaded, "
+            f"the port is reachable by every container on the bridge")
+    try:
+        return split(json.loads(out.stdout))
+    except (json.JSONDecodeError, ValueError, TypeError, KeyError):
+        die(f"could not parse the {TABLE[1]} table as JSON")
+
+
+def matches_field(expr, field, value, protocol=None):
+    """True when one expression compares `field` for equality with `value`.
+
+    `field` is a header field name, or "iifname" for the meta key. `protocol`
+    pins the payload protocol, which matters for ports: a udp dport is not a
+    tcp dport, and a fence whose drop is on udp fences nothing this service
+    listens on.
+    """
+    match = expr.get("match")
+    if not match or match.get("op") != "==":
+        return False
+    left, right = match.get("left"), match.get("right")
+    if field == "iifname":
+        found = left == {"meta": {"key": "iifname"}}
+    else:
+        payload = left.get("payload", {}) if isinstance(left, dict) else {}
+        found = payload.get("field") == field \
+            and (protocol is None or payload.get("protocol") == protocol)
+    return found and str(right) == str(value)
+
+
+def verdict(exprs):
+    for expr in exprs:
+        if "accept" in expr:
+            return "accept"
+        if "drop" in expr:
+            return "drop"
+    return None
+
+
+def is_unconditional_drop(exprs, port):
+    """True when the rule drops tcp `port` and asks nothing else of a packet."""
+    if verdict(exprs) != "drop":
+        return False
+    seen_port = False
+    for expr in exprs:
+        if "counter" in expr or "drop" in expr:
+            continue
+        if matches_field(expr, "dport", port, protocol="tcp"):
+            seen_port = True
+            continue
+        return False
+    return seen_port
+
+
+def is_pinned_accept(exprs, port, allow_from, allow_if, bind):
+    """True when the rule accepts tcp `port` only from the one admitted peer."""
+    if verdict(exprs) != "accept":
+        return False
+    required = {
+        "iifname": False,
+        "saddr": False,
+        "daddr": False,
+        "dport": False,
+    }
+    for expr in exprs:
+        if "counter" in expr or "accept" in expr:
+            continue
+        # ct state new is allowed; it narrows, it does not widen.
+        match = expr.get("match") or {}
+        if match.get("left") == {"ct": {"key": "state"}}:
+            continue
+        if matches_field(expr, "iifname", allow_if):
+            required["iifname"] = True
+        elif matches_field(expr, "saddr", allow_from):
+            required["saddr"] = True
+        elif matches_field(expr, "daddr", bind):
+            required["daddr"] = True
+        elif matches_field(expr, "dport", port, protocol="tcp"):
+            required["dport"] = True
+        else:
+            return False
+    return all(required.values())
+
+
+def check_fence(table_json=None):
+    port = env("LINUX_MCP_PORT")
+    allow_from = env("LINUX_MCP_ALLOW_FROM")
+    allow_if = env("LINUX_MCP_ALLOW_IF")
+    bind = env("LINUX_MCP_HOST")
+
+    rules, input_chains = load_table(table_json)
+
+    # The fence is required to be EXACTLY two rules in one input-hooked chain.
+    #
+    # The alternative is deciding which of an arbitrary rule set could match a
+    # packet on this port, and that is an nftables evaluator: ranges, sets,
+    # negations, and any rule with no port match at all (which matches every
+    # port, including this one). Each gap found in that approach was real, and
+    # there was always another one.
+    #
+    # So this does not try to understand a fence. It recognises the one this
+    # service ships and refuses everything else. The table is ours; if it ever
+    # needs a different shape, this check changes with it, deliberately.
+    if len(input_chains) != 1:
+        die(f"nftables table {TABLE[1]} must have exactly one input-hooked "
+            f"chain; found {len(input_chains)}")
+    chain = next(iter(input_chains))
+
+    in_chain = [r.get("expr", []) for r in rules if r.get("chain") == chain]
+    stray = [r.get("chain") for r in rules if r.get("chain") != chain]
+    if stray:
+        die(f"nftables table {TABLE[1]} has rules outside its {chain} chain "
+            f"({', '.join(sorted(set(stray)))}); this check reads one chain")
+
+    if len(in_chain) != 2:
+        die(f"nftables table {TABLE[1]} chain {chain} must be exactly two "
+            f"rules -- admit {allow_from} on {allow_if}, then drop tcp {port} "
+            f"-- but has {len(in_chain)}")
+
+    if not is_pinned_accept(in_chain[0], port, allow_from, allow_if, bind):
+        die(f"the first rule of {TABLE[1]} {chain} is not an accept of tcp "
+            f"{port} pinned to source {allow_from}, interface {allow_if} and "
+            f"address {bind}")
+
+    if not is_unconditional_drop(in_chain[1], port):
+        die(f"the second rule of {TABLE[1]} {chain} is not an unconditional "
+            f"drop of tcp {port}; the port is not fenced")
+
+
+def main():
+    args = sys.argv[1:]
+    table_json = None
+    bind_only = False
+
+    if args == ["--bind-only"]:
+        bind_only = True
+    elif len(args) == 2 and args[0] == "--table-json":
+        table_json = args[1]
+    elif args:
+        die("usage: linux-mcp-server-preflight [--bind-only | --table-json FILE]")
+
+    check_bind_address()
+    if not bind_only:
+        check_fence(table_json)
+
+
+if __name__ == "__main__":
+    main()
