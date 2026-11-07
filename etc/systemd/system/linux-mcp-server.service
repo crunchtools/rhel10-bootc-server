@@ -32,11 +32,19 @@ EnvironmentFile=/etc/linux-mcp-server/linux-mcp.env
 # --transport http matters most: the default is stdio, and under systemd there
 # is no client on stdin, so a unit that leaves it out starts a server that
 # serves nobody.
+#
+# --toolset fixed, not both: upstream's guarded command execution does not
+# work here. Its gatekeeper cannot open an outbound connection from inside
+# the serving process -- any provider, internet or LAN, with no sandboxing,
+# full capabilities and no seccomp filter, while the same interpreter with
+# the same environment outside the server connects fine. Offering the three
+# script tools would mean offering tools that always error, so the read-only
+# set is what ships.
 ExecStart=/usr/bin/linux-mcp-server \
     --transport http \
     --path /mcp \
     --host-mode local-only \
-    --toolset both \
+    --toolset fixed \
     --policy-path /etc/linux-mcp-server/policy.yaml \
     --allowed-log-paths /var/log/messages,/var/log/secure,/var/log/audit/audit.log \
     --log-output files \

@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- `linux-mcp-server` ships the **read-only toolset** (`--toolset fixed`), not
+  `both`. Upstream's guarded command execution does not work on this host:
+  its gatekeeper cannot open an outbound connection from inside the serving
+  process, with any provider, to the internet or to a LAN address, while the
+  same interpreter and environment outside the server connect fine. No
+  sandboxing, full capabilities, no seccomp filter, same network namespace as
+  PID 1 — so it is upstream's, in a feature upstream marks experimental.
+  Shipping `both` would offer three tools that always error (RT #1568).
+
 ### Fixed
 - The `linux-mcp-server` **unit was never copied into the image**. The binary,
   the preflight, its fixtures and the policy all shipped; the one file that
