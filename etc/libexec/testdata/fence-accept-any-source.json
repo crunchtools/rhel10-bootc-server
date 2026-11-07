@@ -1,0 +1,118 @@
+{
+ "nftables": [
+  {
+   "metainfo": {
+    "version": "1.1.5",
+    "release_name": "Commodore Bullmoose #6",
+    "json_schema_version": 1
+   }
+  },
+  {
+   "table": {
+    "family": "inet",
+    "name": "linux_mcp",
+    "handle": 20
+   }
+  },
+  {
+   "chain": {
+    "family": "inet",
+    "table": "linux_mcp",
+    "name": "input",
+    "handle": 1,
+    "type": "filter",
+    "hook": "input",
+    "prio": -20,
+    "policy": "accept"
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "linux_mcp",
+    "chain": "input",
+    "expr": [
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "meta": {
+         "key": "iifname"
+        }
+       },
+       "right": "podman1"
+      }
+     },
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "payload": {
+         "protocol": "ip",
+         "field": "daddr"
+        }
+       },
+       "right": "10.89.0.1"
+      }
+     },
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "payload": {
+         "protocol": "tcp",
+         "field": "dport"
+        }
+       },
+       "right": 8034
+      }
+     },
+     {
+      "match": {
+       "op": "in",
+       "left": {
+        "ct": {
+         "key": "state"
+        }
+       },
+       "right": "new"
+      }
+     },
+     {
+      "counter": {}
+     },
+     {
+      "accept": null
+     }
+    ]
+   }
+  },
+  {
+   "rule": {
+    "family": "inet",
+    "table": "linux_mcp",
+    "chain": "input",
+    "expr": [
+     {
+      "match": {
+       "op": "==",
+       "left": {
+        "payload": {
+         "protocol": "tcp",
+         "field": "dport"
+        }
+       },
+       "right": 8034
+      }
+     },
+     {
+      "counter": {}
+     },
+     {
+      "drop": null
+     }
+    ]
+   }
+  }
+ ]
+}

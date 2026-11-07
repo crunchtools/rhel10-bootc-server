@@ -27,7 +27,10 @@ through `podman-auto-update.timer`.
   `rsyslog.service` (log forwarding, aliased as `syslog.service`).
 - **Packages:** cockpit, petit, git, vim-enhanced, nodejs24 (with
   `node`/`npm`/`npx` symlinks), python3-pip, python3-devel, sqlite, rclone,
-  rsyslog, gh, uv, sysstat, systemd-oomd.
+  rsyslog, gh, uv, sysstat, systemd-oomd. `linux-mcp-server` is pinned and
+  installed with `uv` from PyPI rather than dnf, into
+  `/usr/lib/linux-mcp-server` with its entry point on `/usr/bin`; it is not
+  packaged for RHEL 10.
 - **Repositories:** EPEL (rclone, gh, uv) and the signed crunchtools
   repository at `crunchtools.github.io/packages` (petit); both repo files and
   GPG keys ship in `etc/` because the build needs them.
