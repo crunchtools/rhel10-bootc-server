@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- The `linux-mcp-server` **unit was never copied into the image**. The binary,
+  the preflight, its fixtures and the policy all shipped; the one file that
+  makes any of it run did not, so gloval came up with everything in place and
+  `systemctl status linux-mcp-server` answering "could not be found". Lost
+  while rewriting that block of the Containerfile — the edit replaced a span
+  that contained the `COPY`, and nothing checked. The build-time policy parse
+  went the same way and is restored with it.
+
+  The build now asserts all four artefacts exist before it finishes. A dropped
+  `COPY` is not a visible failure otherwise: it produces a host that looks
+  configured and has no service.
+
 ### Added
 - `linux-mcp-server` 1.8.0 (rhel-lightspeed), pinned, installed with `uv` into
   `/usr/lib/linux-mcp-server` with its entry point on `/usr/bin`. Host

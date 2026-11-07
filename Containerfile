@@ -59,9 +59,34 @@ RUN UV_TOOL_DIR=/usr/lib/linux-mcp-server UV_TOOL_BIN_DIR=/usr/bin \
     rm -rf /root/.cache
 
 COPY etc/linux-mcp-server/policy.yaml /etc/linux-mcp-server/policy.yaml
+# Source lives under etc/ so the build workflow's paths filter sees it; the
+# destination is /usr/lib because this unit comes from the image, not the host.
+COPY etc/systemd/system/linux-mcp-server.service /usr/lib/systemd/system/linux-mcp-server.service
 COPY etc/libexec/linux-mcp-server-preflight /usr/libexec/linux-mcp-server-preflight
 COPY etc/libexec/testdata /usr/share/linux-mcp-server/testdata
 RUN chmod 0755 /usr/libexec/linux-mcp-server-preflight
+
+# Everything this feature needs is in the image. A COPY lost in an edit
+# produces a host where the binary and its config are present, the service
+# simply does not exist, and nothing says so until someone asks systemd for
+# it -- which is how 1.2.0 shipped.
+RUN set -e; \
+    for f in /usr/bin/linux-mcp-server \
+             /usr/lib/systemd/system/linux-mcp-server.service \
+             /usr/libexec/linux-mcp-server-preflight \
+             /etc/linux-mcp-server/policy.yaml; do \
+        test -e "$f" || { echo "missing from image: $f" >&2; exit 1; }; \
+    done
+
+# Parse the authorization policy with upstream's own parser. get_policy()
+# raises on a malformed file at the first call, and on the http transport a
+# policy that will not load is deny-everything -- which would be discovered on
+# the day this host needed repairing. Upstream's tests already cover the
+# localhost-grant and wildcard-deny semantics; this only proves our file loads.
+RUN /usr/lib/linux-mcp-server/linux-mcp-server/bin/python -c \
+    'from pathlib import Path; from linux_mcp_server.auth_policy import AuthPolicy; \
+     p = AuthPolicy.from_yaml(Path("/etc/linux-mcp-server/policy.yaml")); \
+     assert len(p.rules) == 2, p.rules'
 
 # Self-test the preflight at build time. It is access control in a script:
 # the IPv6 unspecified address has enough spellings that "looks right" is not
