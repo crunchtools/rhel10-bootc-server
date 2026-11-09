@@ -60,10 +60,22 @@ All notable changes to this project are documented here. The format follows
   the block-mode rows of `systemd-inhibit --list` are logged, because they are
   what a person wants to see on a Saturday night, and they decide nothing.
 
+  The matching line has to name the reboot as well as the denial: gloval logged
+  `Call to Reboot failed: Access denied`, and a denial from some other
+  operation in the same cycle — a registry pull, say — is not evidence about
+  this one. `journalctl --grep` does the first pass so a chatty cycle cannot
+  push the one line that matters out of a line cap, with an unfiltered re-read
+  only when journalctl complains about `--grep` rather than on every real
+  failure.
+
   A diagnostic string is a thin thing to rest on, and it rests the right way
   up: no denial matched means real failure and nothing is touched. If logind's
   wording ever changes, this stops cleaning up and says so in the journal.
   That is the direction every uncertainty here is pointed.
+
+  The twenty minutes is only the right number between the drop-in's
+  `TimeoutStartSec` and the timer's `OnActiveSec`, and nothing at runtime can
+  notice if one of them moves. The image build asserts all three together.
 
   Three cases it must not get wrong, and does not. A *successful* apply ends
   `Result=signal`, not `timeout`, and fires this same `OnFailure=` on the way
@@ -79,7 +91,7 @@ All notable changes to this project are documented here. The format follows
   keep unattended updates off it, and nothing added for the interlock may
   quietly become the path that was masked.
 
-  The classifier is self-tested in the image build against eighteen
+  The classifier is self-tested in the image build against nineteen
   host-state fixtures, which stay at
   `/usr/share/bootc-apply-deferred/testdata` so the check can be re-run on a
   host. It is tested because it decides when to erase the evidence of a

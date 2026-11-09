@@ -79,6 +79,18 @@ RUN set -e; \
     grep -q '^OnFailure=bootc-apply-deferred.service$' \
         /etc/systemd/system/bootc-fetch-apply-updates.service.d/10-defer-for-backups.conf
 
+# The classifier looks for logind's denial over a twenty-minute window, and
+# twenty minutes is only the right number between these two settings: it has to
+# outlast one cycle (the start timeout plus teardown) and stop short of the
+# previous one (the retry interval). Nothing at runtime can notice if one of
+# them moves and the window goes stale, so the relationship is asserted here,
+# where all three files are in one place.
+RUN set -e; \
+    grep -q '^TimeoutStartSec=10min$' \
+        /etc/systemd/system/bootc-fetch-apply-updates.service.d/10-defer-for-backups.conf; \
+    grep -q '^OnActiveSec=30min$' /usr/lib/systemd/system/bootc-apply-retry.timer; \
+    grep -q '^CYCLE_WINDOW = "-20min"$' /usr/libexec/bootc-apply-deferred
+
 # Self-test the classifier at build time. It decides when to reset-failed a
 # unit, which is to say when to erase the evidence of a failure, and it cannot
 # be exercised on the host: reproducing the live case means holding a block

@@ -89,10 +89,11 @@ failure, and "looks right" is not evidence for that. The image build runs
 cover a refusal, a refusal whose rotation ended before the timeout, both of
 logind's refusal wordings, a real exit-code failure, a successful apply's
 teardown, a timeout with no reboot attempted, a reboot that failed without
-being refused while an unrelated rotation was running, a block inhibitor with
-nothing in the journal, an empty journal, a stale transient from an earlier
-cycle, a failed transient belonging to something else, and a deferral that has
-to clean up one while leaving the other. Each fixture is a host state with the
+being refused while an unrelated rotation was running, a denial logged by some
+other operation in the same cycle, a block inhibitor with nothing in the
+journal, an empty journal, a stale transient from an earlier cycle, a failed
+transient belonging to something else, and a deferral that has to clean up one
+while leaving the other. Each fixture is a host state with the
 expected decision beside it, and they stay in the image so the same check can
 be re-run on a host.
 """
@@ -134,6 +135,9 @@ DENIAL_MARKERS = ("Access denied", "Interactive authentication required")
 # and converting it drifts by however long the host has been suspended --
 # measured at five minutes on a laptop, which would put the window AFTER the
 # refusal and lose it.
+#
+# Nothing at runtime can notice if either of those two settings moves and
+# leaves this stale, so the image build asserts all three together.
 CYCLE_WINDOW = "-20min"
 
 # Read from the failing unit and from each candidate transient. Result is the
@@ -155,16 +159,14 @@ def log(msg):
     print(f"bootc-apply-deferred: {msg}", flush=True)
 
 
-def run(argv, check=False, with_stderr=False):
-    """Return stdout, or "" if the command is missing or fails.
+def invoke(argv, check=False):
+    """Run argv and return (returncode, stdout, stderr).
 
-    A missing or broken helper must not be able to turn a real failure into a
-    deferral: every caller treats "" as absence of evidence, and absence of
-    evidence classifies as a real failure.
-
-    with_stderr returns (stdout, stderr) instead, for the one caller that has
-    to tell "this command does not support that option" apart from "there was
-    nothing to find", which are the same exit status.
+    The whole outcome, because one caller has to tell "this command does not
+    support that option" apart from "there was nothing to find" and those
+    share an exit status. check turns any failure into an exception, named, so
+    that the journal distinguishes a reset that would not happen from a retry
+    that could not be armed.
     """
     try:
         proc = subprocess.run(
@@ -173,22 +175,28 @@ def run(argv, check=False, with_stderr=False):
         )
     except (OSError, subprocess.SubprocessError) as err:
         if check:
-            # Named, like the non-zero path below. The journal otherwise says
-            # only which executable broke, which does not distinguish the
-            # reset from arming the retry.
             raise RuntimeError(f"{' '.join(argv)} could not run: {err}") from err
-        log(f"{' '.join(argv)} could not run: {err}")
-        return ("", str(err)) if with_stderr else ""
-    if proc.returncode != 0:
-        if check:
-            raise RuntimeError(
-                f"{' '.join(argv)} exited {proc.returncode}: "
-                f"{proc.stderr.strip() or proc.stdout.strip()}"
-            )
-        if not with_stderr:
-            log(f"{' '.join(argv)} exited {proc.returncode}: {proc.stderr.strip()}")
-            return ""
-    return (proc.stdout, proc.stderr) if with_stderr else proc.stdout
+        return 127, "", str(err)
+    if check and proc.returncode != 0:
+        raise RuntimeError(
+            f"{' '.join(argv)} exited {proc.returncode}: "
+            f"{proc.stderr.strip() or proc.stdout.strip()}"
+        )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def run(argv, check=False):
+    """Return stdout, or "" if the command is missing or fails.
+
+    A missing or broken helper must not be able to turn a real failure into a
+    deferral: every caller treats "" as absence of evidence, and absence of
+    evidence classifies as a real failure.
+    """
+    returncode, out, err = invoke(argv, check)
+    if returncode != 0:
+        log(f"{' '.join(argv)} exited {returncode}: {err.strip()}")
+        return ""
+    return out
 
 
 def show(units, properties):
@@ -292,15 +300,25 @@ def inhibitor_table():
 
 
 def denial_in(text):
-    """True when journal text carries logind's refusal of a reboot.
+    """True when journal text carries logind's refusal of a REBOOT.
 
-    The one piece of evidence that says the reboot was REFUSED rather than
+    The one piece of evidence that says the reboot was refused rather than
     merely unsuccessful, which is the difference between a backup holding an
     update off and a host that cannot reboot. A diagnostic string is a thin
     thing to rest a decision on, so it rests the right way up: no match means
     real failure, and the units stay as they are.
+
+    Line by line, and the line has to name the reboot as well as the denial.
+    gloval logged "Call to Reboot failed: Access denied", which is systemctl's
+    "Call to %s failed: %s" with logind's method in it -- so the method name is
+    not pinned (RebootWithFlags is the same message), but a denial that does
+    not mention a reboot at all belongs to some other operation and is not
+    evidence about this one.
     """
-    return any(marker in text for marker in DENIAL_MARKERS)
+    return any(
+        "reboot" in line.lower() and any(m in line for m in DENIAL_MARKERS)
+        for line in text.splitlines()
+    )
 
 
 def cycle_journal(units):
@@ -339,8 +357,8 @@ def cycle_journal(units):
         return ""
     query = ["journalctl", "--no-pager", "--quiet", "--output=cat",
              f"--since={CYCLE_WINDOW}", *(f"--unit={u}" for u in units)]
-    out, err = run([*query, f"--grep={'|'.join(DENIAL_MARKERS)}"], with_stderr=True)
-    if out or not err.strip():
+    returncode, out, err = invoke([*query, f"--grep={'|'.join(DENIAL_MARKERS)}"])
+    if returncode == 0 or not err.strip():
         return out
     log(f"journalctl refused --grep ({err.strip()}); reading the window unfiltered")
     return run(query)
