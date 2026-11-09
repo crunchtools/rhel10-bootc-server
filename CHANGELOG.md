@@ -6,6 +6,42 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **The bootc apply now defers for a backup instead of killing it** (RT #1594).
+  A drop-in on `bootc-fetch-apply-updates.service` and a `bootc-apply-retry`
+  timer, the host half of an interlock whose other half is the block shutdown
+  inhibitor pbs 2.7.0 holds for the life of every rotation.
+
+  On 2026-11-08 at 03:30 this unit rebooted gloval and SIGKILLed the weekly
+  pCloud rotation at 93%, 36 minutes from the end of a ten-hour transfer. Two
+  things about it were not what they looked like. The unit is
+  `bootc upgrade --apply`, and `--apply` reboots the host itself about twenty
+  seconds after staging, so "it only stages" was wrong. And
+  `bootc-fetch-apply-updates.timer` is masked here, the service is `static`
+  with no triggers, and there is no cron entry or sudo record for it — so
+  something starts it over D-Bus, and three runs in seven days at irregular
+  hours say it is not a schedule. That caller is still unidentified, which is
+  the reason the guard is a lock rather than a condition: it does not need to
+  know who asked.
+
+  `TimeoutStartSec=10min`, because bootc calls `systemd-run` without `--wait`.
+  systemd-run returns 0 as soon as the transient unit starts and never sees
+  `systemctl reboot` exit non-zero, so a refused reboot leaves bootc parked
+  forever waiting for a SIGTERM that never arrives. Upstream's bug; bounded
+  here until it is fixed. The 11-08 run pulled, staged and rebooted in twenty
+  seconds, so ten minutes is thirty times the headroom.
+
+  `OnFailure=bootc-apply-retry.timer`, because a refused reboot otherwise
+  leaves the image staged with nothing retrying — skipped, not deferred. The
+  timer arms one attempt thirty minutes out, elapses once and goes inactive so
+  the next failure re-arms it. A rotation still running refuses again; when it
+  finishes, the staged image applies. `bootc upgrade --apply` reboots on an
+  unchanged staged deployment, so the retry needs to re-fetch nothing.
+
+  The timer has no `[Install]` section and is never enabled. It exists only
+  after an apply has already failed, so this does not quietly become the
+  unattended update path that masking the bootc timer was meant to prevent.
+
 ### Changed
 - `linux-mcp-server` ships the **read-only toolset** (`--toolset fixed`), not
   `both`. Upstream's guarded command execution does not work on this host:
