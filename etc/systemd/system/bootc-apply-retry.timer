@@ -1,0 +1,16 @@
+# Armed only by OnFailure= on bootc-fetch-apply-updates.service, never
+# enabled. bootc-fetch-apply-updates.timer is masked on this host on purpose
+# and this must not quietly become an unattended update path: with no
+# [Install] section, this timer exists only after an apply has already failed.
+[Unit]
+Description=Retry a bootc apply that a block inhibitor refused (RT #1594)
+Documentation=man:systemd-inhibit(1) man:bootc-upgrade(8)
+
+[Timer]
+OnActiveSec=30min
+AccuracySec=1min
+# Elapse once, then go inactive so the next failure's OnFailure= start re-arms
+# it. A timer still active cannot be re-armed by `systemctl start`, and the
+# retry chain would stop after a single attempt.
+RemainAfterElapse=no
+Unit=bootc-fetch-apply-updates.service

@@ -43,6 +43,15 @@ COPY etc/systemd/journald.conf.d/10-forward-to-syslog.conf /etc/systemd/journald
 COPY etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf /etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf
 COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/containers.conf.d/50-exec-cleanup.conf
 
+# Backup interlock (RT #1594). `bootc upgrade --apply` reboots this host on its
+# own, and it killed a ten-hour pCloud rotation at 93%. The pbs rotations hold
+# a block shutdown inhibitor, which logind honours; these two files turn the
+# resulting refusal into a deferral instead of a skipped update. The drop-in
+# goes to /etc because that is where drop-ins for a unit shipped by another
+# package belong; the timer goes to /usr/lib because it comes from the image.
+COPY etc/systemd/system/bootc-fetch-apply-updates.service.d/10-defer-for-backups.conf /etc/systemd/system/bootc-fetch-apply-updates.service.d/10-defer-for-backups.conf
+COPY etc/systemd/system/bootc-apply-retry.timer /usr/lib/systemd/system/bootc-apply-retry.timer
+
 # linux-mcp-server: host administration for the Josui Prime agent, reached
 # only through the Trentina gateway (RT#1568). It is in the image rather than
 # installed by hand because /usr and /opt are read-only here and because the
