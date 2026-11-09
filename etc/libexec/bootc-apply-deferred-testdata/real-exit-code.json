@@ -1,0 +1,13 @@
+{
+  "apply": {
+    "ActiveState": "failed",
+    "InactiveExitTimestampMonotonic": "1000000000",
+    "Result": "exit-code"
+  },
+  "block_inhibited": "shutdown",
+  "expect": {
+    "deferral": false,
+    "reset": []
+  },
+  "transients": []
+}

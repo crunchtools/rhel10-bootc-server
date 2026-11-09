@@ -1,0 +1,34 @@
+{
+  "apply": {
+    "ActiveState": "failed",
+    "InactiveExitTimestampMonotonic": "1000000000",
+    "Result": "timeout"
+  },
+  "block_inhibited": "shutdown",
+  "expect": {
+    "deferral": true,
+    "reset": [
+      "bootc-fetch-apply-updates.service",
+      "run-p110001-i110002.service",
+      "run-p220259-i220260.service"
+    ]
+  },
+  "transients": [
+    {
+      "ActiveState": "failed",
+      "Description": "/usr/bin/systemctl reboot --message=Initiated by bootc",
+      "ExecStart": "{ path=/usr/bin/systemctl ; argv[]=[systemd-run] /usr/bin/systemctl reboot \"--message=Initiated by bootc\" ; ignore_errors=no ; start_time=[Mon 2026-11-09 02:19:06 EST] ; stop_time=[Mon 2026-11-09 02:19:06 EST] ; pid=220260 ; code=exited ; status=1 }",
+      "InactiveExitTimestampMonotonic": "1020000000",
+      "Transient": "yes",
+      "unit": "run-p220259-i220260.service"
+    },
+    {
+      "ActiveState": "failed",
+      "Description": "/usr/bin/systemctl reboot --message=Initiated by bootc",
+      "ExecStart": "{ path=/usr/bin/systemctl ; argv[]=[systemd-run] /usr/bin/systemctl reboot \"--message=Initiated by bootc\" ; ignore_errors=no ; start_time=[Mon 2026-11-09 02:19:06 EST] ; stop_time=[Mon 2026-11-09 02:19:06 EST] ; pid=220260 ; code=exited ; status=1 }",
+      "InactiveExitTimestampMonotonic": "500000000",
+      "Transient": "yes",
+      "unit": "run-p110001-i110002.service"
+    }
+  ]
+}

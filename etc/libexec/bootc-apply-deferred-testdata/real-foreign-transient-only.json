@@ -1,0 +1,22 @@
+{
+  "apply": {
+    "ActiveState": "failed",
+    "InactiveExitTimestampMonotonic": "1000000000",
+    "Result": "timeout"
+  },
+  "block_inhibited": "shutdown",
+  "expect": {
+    "deferral": false,
+    "reset": []
+  },
+  "transients": [
+    {
+      "ActiveState": "failed",
+      "Description": "/usr/bin/rclone sync /srv pcloud:backup",
+      "ExecStart": "{ path=/usr/bin/rclone ; argv[]=/usr/bin/rclone sync /srv pcloud:backup ; ignore_errors=no }",
+      "InactiveExitTimestampMonotonic": "1005000000",
+      "Transient": "yes",
+      "unit": "run-p40001-i40002.service"
+    }
+  ]
+}

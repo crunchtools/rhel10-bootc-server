@@ -6,6 +6,70 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **A deferred bootc apply no longer leaves failed units behind** (RT #1566,
+  RT #1594). The interlock worked and still reported the host as broken for
+  doing so. Every deferral cycle left `bootc-fetch-apply-updates.service` in
+  `failed` with `Result=timeout`, because that is how the drop-in's
+  `TimeoutStartSec` ends bootc's park on a refused reboot, plus one failed
+  transient per refusal — a `run-pNNN-iNNN.service` running
+  `systemctl reboot --message=Initiated by bootc`, failed because
+  `systemctl reboot` came back non-zero. They accumulate: four on 2026-11-09,
+  and gloval's "Host failed systemd units" check sat CRITICAL for over two
+  hours while a rotation held an OS update off, then had to be swept by hand.
+
+  That is the alert-fatigue failure RT #1566 is about. A check that goes red
+  when nothing is wrong gets acknowledged, and an acknowledged check is not a
+  check — so the fix is the host not reporting itself broken, not the monitor
+  learning to look away. Nothing in the nagios-agent repo changed.
+
+  `OnFailure=` on the drop-in now points at a new
+  `bootc-apply-deferred.service` instead of straight at the retry timer,
+  because a dependency cannot tell a deferral from a failure and a decision
+  can. It calls `/usr/libexec/bootc-apply-deferred`, which requires two facts
+  before it clears anything: the apply unit ended `Result=timeout`, and a
+  failed transient *from that same run* is running bootc's reboot. Both come
+  from `systemctl show`. Only then does it `reset-failed` the apply unit and
+  every failed transient attributable to bootc's reboot; on anything else it
+  changes no failed state at all and the host stays exactly as loud as before.
+  Either way it arms `bootc-apply-retry.timer`, which is what pointing at the
+  timer did before.
+
+  The second fact is where this departs from the obvious design, which would
+  be "a block shutdown inhibitor is held right now". That is the right cause,
+  but `TimeoutStartSec` is 10 minutes, so it is checked ten minutes after its
+  own effect — a rotation finishing inside that window would make a real
+  deferral look like a real failure and leave the units this exists to clear.
+  On 11-09 the refusal was at 02:19:06 and the rotation finished at 02:31:16,
+  about two and a half minutes clear of the timeout. So the inhibitor is read
+  from logind's own `BlockInhibited` property, logged with
+  `systemd-inhibit --list` so the journal names whoever held it, and reported
+  as corroboration — but the decision rests on the refusal's artefact. The
+  bias throughout is one-directional: anything that cannot be positively
+  identified as a deferral is left failed.
+
+  Three cases it must not get wrong, and does not. A *successful* apply ends
+  `Result=signal`, not `timeout`, and fires this same `OnFailure=` on the way
+  down — excluded by name rather than by luck. A timeout with no reboot ever
+  attempted, such as a hung fetch, has no transient to point at and stays
+  failed, so the interlock cannot become a way to never hear about broken
+  updates. And a failed `run-p*` transient belonging to something else is
+  identified by its command, not its name, and survives.
+
+  `bootc-apply-deferred.service` has no `[Install]` section, is never enabled
+  and starts no apply of its own, the same property `bootc-apply-retry.timer`
+  has: masking `bootc-fetch-apply-updates.timer` on this host was meant to
+  keep unattended updates off it, and nothing added for the interlock may
+  quietly become the path that was masked.
+
+  The classifier is self-tested in the image build against thirteen
+  `systemctl show` fixtures, which stay at
+  `/usr/share/bootc-apply-deferred/testdata` so the check can be re-run on a
+  host. It is tested because it decides when to erase the evidence of a
+  failure, and because the live case cannot be reproduced on gloval without
+  holding a block inhibitor through a real apply and waiting out a ten-minute
+  timeout.
+
 ### Added
 - **The interlock's two halves were verified on the live host** (RT #1594),
   with timestamps recorded in the drop-in beside the settings they justify. A

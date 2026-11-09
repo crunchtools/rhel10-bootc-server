@@ -52,6 +52,46 @@ COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/conta
 COPY etc/systemd/system/bootc-fetch-apply-updates.service.d/10-defer-for-backups.conf /etc/systemd/system/bootc-fetch-apply-updates.service.d/10-defer-for-backups.conf
 COPY etc/systemd/system/bootc-apply-retry.timer /usr/lib/systemd/system/bootc-apply-retry.timer
 
+# The third piece: the drop-in's OnFailure= goes through this service so that a
+# DEFERRED apply leaves no failed units while a GENUINE failure stays visible
+# (RT #1566). Every deferral cycle used to leave the apply unit failed with
+# Result=timeout plus one failed transient per refused reboot, and gloval's
+# failed-units check sat CRITICAL for two hours on 2026-11-09 because the
+# interlock was working. A check that fires when nothing is wrong gets
+# acknowledged; the host had to stop lying about being broken.
+#
+# Neither this nor the timer is enabled and neither has an [Install] section.
+COPY etc/systemd/system/bootc-apply-deferred.service /usr/lib/systemd/system/bootc-apply-deferred.service
+COPY etc/libexec/bootc-apply-deferred /usr/libexec/bootc-apply-deferred
+COPY etc/libexec/bootc-apply-deferred-testdata /usr/share/bootc-apply-deferred/testdata
+RUN chmod 0755 /usr/libexec/bootc-apply-deferred
+
+# All three files, or the interlock has a hole that nothing reports: a missing
+# unit makes every OnFailure= a no-op and the deferral silently goes back to
+# being a skipped update. 1.2.0 shipped exactly this way with linux-mcp-server.
+RUN set -e; \
+    for f in /usr/lib/systemd/system/bootc-apply-deferred.service \
+             /usr/lib/systemd/system/bootc-apply-retry.timer \
+             /usr/libexec/bootc-apply-deferred \
+             /etc/systemd/system/bootc-fetch-apply-updates.service.d/10-defer-for-backups.conf; do \
+        test -e "$f" || { echo "missing from image: $f" >&2; exit 1; }; \
+    done; \
+    grep -q '^OnFailure=bootc-apply-deferred.service$' \
+        /etc/systemd/system/bootc-fetch-apply-updates.service.d/10-defer-for-backups.conf
+
+# Self-test the classifier at build time. It decides when to reset-failed a
+# unit, which is to say when to erase the evidence of a failure, and it cannot
+# be exercised on the host: reproducing the live case means holding a block
+# inhibitor through a real apply and waiting out a ten-minute timeout. The
+# fixtures are `systemctl show` states -- the 11-09 refusal, that refusal with
+# the rotation already finished, a real exit-code failure, the 'signal' result
+# every SUCCESSFUL apply leaves on the way down, a timeout where no reboot was
+# ever attempted, a stale transient, a failed transient belonging to something
+# else, and a deferral that must clear one while leaving the other. Each one
+# carries the decision it must produce.
+RUN /usr/libexec/bootc-apply-deferred --self-test \
+        /usr/share/bootc-apply-deferred/testdata
+
 # linux-mcp-server: host administration for the Josui Prime agent, reached
 # only through the Trentina gateway (RT#1568). It is in the image rather than
 # installed by hand because /usr and /opt are read-only here and because the
