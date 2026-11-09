@@ -1,0 +1,39 @@
+# Started only by OnFailure= on bootc-fetch-apply-updates.service, never
+# enabled, and -- like bootc-apply-retry.timer -- deliberately without an
+# [Install] section. Masking bootc-fetch-apply-updates.timer on this host was
+# meant to keep unattended updates off it, and nothing added for the backup
+# interlock may quietly become the path that was masked. This unit exists only
+# after an apply has already failed, and it starts no apply of its own: the
+# one thing it can set in motion is the retry timer, which the drop-in's
+# OnFailure= armed directly before this unit stood between them.
+#
+# What it is for: a DEFERRED apply should leave the host with no failed units,
+# while a GENUINE apply failure stays as visible as it was. Both the test and
+# the reasoning behind it are in /usr/libexec/bootc-apply-deferred; the short
+# version is three facts, all required -- the apply unit ended Result=timeout,
+# a failed transient from the same run is bootc's `systemctl reboot`, and this
+# cycle's journal records logind refusing it. Anything it cannot positively
+# identify as a deferral it leaves failed.
+[Unit]
+Description=Sort a deferred bootc apply from a failed one (RT #1594)
+Documentation=man:systemd-inhibit(1) man:journalctl(1) man:bootc-upgrade(8)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/bootc-apply-deferred
+
+# The work is a handful of `systemctl show` calls, one busctl property read
+# and at most a few reset-faileds, so this is a bound on something having gone
+# wrong rather than a budget. It matters because the script starts the retry
+# timer with a BLOCKING `systemctl start`, chosen so that a retry which could
+# not be armed fails this unit where somebody will see it. That start cannot
+# deadlock -- the timer has no ordering relation to this service in either
+# direction, and systemd's ordering only holds within one transaction, which a
+# separate `systemctl start` is not part of -- but that is reasoning, not an
+# observation, and two minutes is what being wrong about it should cost.
+TimeoutStartSec=2min
+
+# No OnFailure= here, on purpose. If this unit fails it stays failed, which
+# means the monitor reports a failed unit on a host whose cleanup is broken --
+# the correct outcome, and the one state this whole change must not be able to
+# hide.

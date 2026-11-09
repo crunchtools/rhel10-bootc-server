@@ -1,0 +1,23 @@
+{
+  "apply": {
+    "ActiveState": "failed",
+    "InactiveExitTimestampMonotonic": "1000000000",
+    "Result": "timeout"
+  },
+  "block_inhibited": "shutdown",
+  "expect": {
+    "deferral": false,
+    "reset": []
+  },
+  "journal": "",
+  "transients": [
+    {
+      "ActiveState": "failed",
+      "Description": "/usr/bin/systemctl reboot --message=Initiated by bootc",
+      "ExecStart": "{ path=/usr/bin/rclone ; argv[]=/usr/bin/rclone sync /srv pcloud:backup ; ignore_errors=no }",
+      "InactiveExitTimestampMonotonic": "1020000000",
+      "Transient": "yes",
+      "unit": "run-p55001-i55002.service"
+    }
+  ]
+}

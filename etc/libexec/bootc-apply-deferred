@@ -1,0 +1,704 @@
+#!/usr/bin/python3
+"""Tell a deferred bootc apply apart from a failed one, and clean up only the
+deferral (RT #1594, RT #1566).
+
+Started only by `OnFailure=` on bootc-fetch-apply-updates.service, which is
+also the only unit this looks at. Background in
+/etc/systemd/system/bootc-fetch-apply-updates.service.d/10-defer-for-backups.conf.
+
+Why this exists at all. The interlock works -- a pbs rotation holds a
+`--mode=block` shutdown inhibitor, logind refuses the reboot `bootc upgrade
+--apply` asks for, the drop-in's TimeoutStartSec cuts the resulting park and
+OnFailure= arms a retry. But every deferral cycle leaves failed units behind:
+the apply unit itself with `Result=timeout`, plus one failed transient per
+refused reboot (`run-p220259-i220260.service`, running bootc's
+`systemctl reboot --message=Initiated by bootc`). Four accumulated on gloval
+on 2026-11-09 and the "Host failed systemd units" check sat CRITICAL for two
+hours *because the interlock was doing its job*. A check that fires when
+nothing is wrong gets acknowledged, and then it is not a check any more.
+
+So the host must stop reporting itself broken when it is not -- without
+getting quieter about the case where it really is. Everything here turns on
+that one distinction, and the bias is deliberate: anything this cannot
+positively identify as a deferral is left failed, loudly, exactly as today.
+
+THE TEST. A deferral is a reboot that was asked for and refused. Three facts,
+all required:
+
+  1. The apply unit's `Result` is `timeout`. That is the drop-in's
+     TimeoutStartSec cutting bootc's park, which is the only way a refused
+     reboot ends -- bootc calls systemd-run without --wait, never sees
+     `systemctl reboot` exit non-zero, and waits forever for a SIGTERM that
+     is not coming. A real apply failure ends `exit-code`; a SUCCESSFUL apply
+     ends `signal`, because the reboot it got tears the unit down and its own
+     process takes the SIGTERM (that last one happens on every good apply and
+     fires this unit too, so it has to be excluded by name, not by luck).
+
+  2. A failed transient service from THIS run of the apply unit whose command
+     is bootc's reboot (`systemctl show` again). That is the reboot request's
+     own wreckage: the transient exists because bootc asked for a reboot, and
+     it is in `failed` rather than gone because `systemctl reboot` came back
+     non-zero.
+
+  3. logind's denial recorded in this cycle's journal -- "Access denied", or
+     the interactive-authentication form -- read from bootc's own units (the
+     apply unit and this run's reboot transients) over a twenty-minute window
+     that covers one cycle and clears the previous one. Fact 2 says the reboot
+     did not happen; this says it did not happen because it was REFUSED.
+
+Why fact 3 exists. `systemctl reboot` can fail for reasons that are nothing to
+do with a backup, and those are real failures. Without this, a host whose
+reboot kept failing on its own account would be swept clean every thirty
+minutes, never update, and never say so -- the exact silence this change is
+supposed to be the opposite of.
+
+Why fact 3 is not the obvious test, "a block shutdown inhibitor is held right
+now". That is the right cause read ten minutes after its own effect, because
+TimeoutStartSec is 10min, and it is wrong in both directions. It is absent
+when the rotation ended inside that window: on 2026-11-09 the refusal was at
+02:19:06 and the rotation finished at 02:31:16, with the timeout landing about
+02:28:46 -- two and a half minutes short of losing the evidence, and one
+slower start from reading a genuine deferral as a failure. And it is present
+when an unrelated rotation merely started after a reboot had already failed
+for its own reasons, which would sweep a real failure. So the inhibitor is
+read from logind's own BlockInhibited property and logged with whoever holds
+it, because it is what a person wants to see on a Saturday night, and it
+decides nothing.
+
+A diagnostic string is a thin thing to rest on, and it rests the right way up:
+no denial matched means real failure, and the units stay exactly as they are
+today. If the wording ever changes, this stops cleaning up and says so in the
+journal, which is the direction every uncertainty here is pointed.
+
+Nothing here is enabled or scheduled, and it starts no apply. The one thing
+it can set in motion is bootc-apply-retry.timer, which the drop-in's
+OnFailure= already armed directly before this unit existed.
+
+Usage:
+  bootc-apply-deferred                 classify this failure and act on it
+  bootc-apply-deferred --dry-run       classify the live host, change nothing
+  bootc-apply-deferred --decide-from F classify the state in JSON file F and
+                                       print the decision, touching no unit
+  bootc-apply-deferred --self-test D   check the subprocess wrapper, then
+                                       classify every fixture in directory D
+                                       against its own recorded expectation.
+
+The last two exist because this decides when to erase the evidence of a
+failure, and "looks right" is not evidence for that. The image build runs
+--self-test over /usr/share/bootc-apply-deferred/testdata, whose fixtures
+cover a refusal, a refusal whose rotation ended before the timeout, both of
+logind's refusal wordings, a real exit-code failure, a successful apply's
+teardown, a timeout with no reboot attempted, a reboot that failed without
+being refused while an unrelated rotation was running, a denial logged by some
+other operation in the same cycle, a block inhibitor with nothing in the
+journal, an empty journal, a stale transient from an earlier cycle, a failed
+transient belonging to something else, and a deferral that has to clean up one
+while leaving the other. Each fixture is a host state with the
+expected decision beside it, and they stay in the image so the same check can
+be re-run on a host.
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+APPLY_UNIT = "bootc-fetch-apply-updates.service"
+RETRY_TIMER = "bootc-apply-retry.timer"
+
+# Every substring must appear for a transient to be attributed to bootc's
+# reboot. "Initiated by bootc" is bootc's own --message and nothing else on
+# this host writes it; the other two keep a different bootc-authored command
+# from matching. Deliberately substrings and not an exact command line:
+# systemd's rendering of ExecStart carries the argv[0] override and the
+# quoting of --message, and this must not turn into a test of that rendering.
+BOOTC_REBOOT_MARKERS = ("systemctl", "reboot", "Initiated by bootc")
+
+# How many block-mode inhibitor rows to put in the journal. The interesting
+# case is one pbs rotation; this is a bound on a log line, not a limit on the
+# decision, which never reads the table at all.
+MAX_INHIBITOR_ROWS = 8
+
+# What a refused reboot says. `systemctl reboot` writes logind's refusal to
+# stderr, and gloval recorded "Call to Reboot failed: Access denied" on
+# 2026-11-09. The second is logind's other refusal shape, for a caller it wants
+# to authenticate rather than one it rejects outright.
+DENIAL_MARKERS = ("Access denied", "Interactive authentication required")
+
+# How far back to look for that denial. Derived, not guessed: a cycle cannot
+# last longer than the drop-in's TimeoutStartSec of 10min plus teardown, and
+# bootc-apply-retry.timer's OnActiveSec puts consecutive cycles at least 30min
+# apart, so twenty minutes covers this cycle with slack at both ends and still
+# clears the previous one. A relative window rather than the apply unit's own
+# start converted to a date: systemd reports that start on CLOCK_MONOTONIC,
+# and converting it drifts by however long the host has been suspended --
+# measured at five minutes on a laptop, which would put the window AFTER the
+# refusal and lose it.
+#
+# Nothing at runtime can notice if either of those two settings moves and
+# leaves this stale, so the image build asserts all three together.
+CYCLE_WINDOW = "-20min"
+
+# Read from the failing unit and from each candidate transient. Result is the
+# classification; ActiveState confirms the unit is still failed rather than
+# already restarted under us; Transient keeps this away from anything
+# installed on disk; InactiveExitTimestampMonotonic is the start of the
+# current run, which is what attributes a transient to this cycle.
+APPLY_PROPERTIES = ("ActiveState", "Result", "InactiveExitTimestampMonotonic")
+TRANSIENT_PROPERTIES = (
+    "ActiveState",
+    "Transient",
+    "ExecStart",
+    "InactiveExitTimestampMonotonic",
+)
+
+
+def log(msg):
+    """Journal, via stdout. systemd captures it under this unit's name."""
+    print(f"bootc-apply-deferred: {msg}", flush=True)
+
+
+def invoke(argv, check=False):
+    """Run argv and return (returncode, stdout, stderr).
+
+    The whole outcome, because one caller has to tell "this command does not
+    support that option" apart from "there was nothing to find" and those
+    share an exit status. check turns any failure into an exception, named, so
+    that the journal distinguishes a reset that would not happen from a retry
+    that could not be armed.
+    """
+    try:
+        proc = subprocess.run(
+            argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as err:
+        if check:
+            raise RuntimeError(f"{' '.join(argv)} could not run: {err}") from err
+        return 127, "", str(err)
+    if check and proc.returncode != 0:
+        raise RuntimeError(
+            f"{' '.join(argv)} exited {proc.returncode}: "
+            f"{proc.stderr.strip() or proc.stdout.strip()}"
+        )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def run(argv, check=False):
+    """Return stdout, or "" if the command is missing or fails.
+
+    A missing or broken helper must not be able to turn a real failure into a
+    deferral: every caller treats "" as absence of evidence, and absence of
+    evidence classifies as a real failure.
+    """
+    returncode, out, err = invoke(argv, check)
+    if returncode != 0:
+        log(f"{' '.join(argv)} exited {returncode}: {err.strip()}")
+        return ""
+    return out
+
+
+def show(units, properties):
+    """`systemctl show` several units at once, keyed by unit name.
+
+    One invocation for all of them, not one per unit: this runs on a host that
+    by definition has failed units, and the count is whatever Nagios is
+    complaining about.
+
+    Keyed by the Id property rather than by the position of each block, so the
+    result does not depend on systemctl emitting blocks in argument order.
+    Not --value either: ExecStart's value is a brace-delimited struct, and
+    positional output would be ambiguous the moment a property was absent.
+    """
+    units = list(units)
+    if not units:
+        return {}
+    wanted = ("Id", *properties)
+    out = run(["systemctl", "show", "--no-pager",
+               *(f"--property={p}" for p in wanted), *units])
+    found = {}
+    for block in out.split("\n\n"):
+        props = {}
+        for line in block.splitlines():
+            key, _, value = line.partition("=")
+            if key:
+                props[key] = value
+        name = props.get("Id")
+        if name:
+            props["unit"] = name
+            found[name] = props
+    return found
+
+
+def monotonic(value):
+    """A systemd *TimestampMonotonic property as an int, or None.
+
+    0 means "never", which systemd reports for a unit that has not run this
+    boot. Both timestamps compared here come from the current boot, so a
+    monotonic clock is the right one -- it does not move when the realtime
+    clock does.
+    """
+    try:
+        usec = int(value)
+    except (TypeError, ValueError):
+        return None
+    return usec if usec > 0 else None
+
+
+def failed_services():
+    """Names of every service unit currently in the failed state."""
+    out = run(["systemctl", "list-units", "--type=service", "--state=failed",
+               "--all", "--plain", "--no-legend", "--no-pager"])
+    names = []
+    for line in out.splitlines():
+        fields = line.split()
+        if fields and fields[0].endswith(".service"):
+            names.append(fields[0])
+    return names
+
+
+def block_inhibited():
+    """logind's BlockInhibited property, e.g. "shutdown:sleep", or "".
+
+    This is the aggregate logind consults when it decides to refuse a reboot,
+    so it is the same fact from the same source rather than a reconstruction
+    of it from the table `systemd-inhibit --list` prints for people.
+    """
+    out = run(["busctl", "--json=short", "get-property",
+               "org.freedesktop.login1", "/org/freedesktop/login1",
+               "org.freedesktop.login1.Manager", "BlockInhibited"])
+    if not out.strip():
+        return ""
+    try:
+        return json.loads(out).get("data", "") or ""
+    except (ValueError, AttributeError):
+        log(f"could not parse BlockInhibited: {out.strip()!r}")
+        return ""
+
+
+def inhibitor_table():
+    """The block-mode rows of `systemd-inhibit --list`, for the journal only.
+
+    BlockInhibited above says *that* shutdown is blocked; this says who is
+    blocking it, which is what a person reading the journal next Saturday
+    wants to see. It never feeds the decision.
+
+    Only the rows whose MODE is a block, and only a few of them. The delay
+    inhibitors a host registers as a matter of course are not what refused the
+    reboot, and copying every one of them plus its free-text reason into the
+    journal on every cycle buries the one line that matters. MODE is the last
+    column, which is all this needs to know about the table's shape -- the
+    decision reads logind's property instead, precisely so that nothing
+    load-bearing depends on parsing this.
+    """
+    if not shutil.which("systemd-inhibit"):
+        return ""
+    rows = [line for line in run(["systemd-inhibit", "--list", "--no-pager"]).splitlines()
+            if line.rstrip().endswith(("block", "block-weak"))]
+    return "\n".join(rows[:MAX_INHIBITOR_ROWS])
+
+
+def denial_in(text):
+    """True when journal text carries logind's refusal of a REBOOT.
+
+    The one piece of evidence that says the reboot was refused rather than
+    merely unsuccessful, which is the difference between a backup holding an
+    update off and a host that cannot reboot. A diagnostic string is a thin
+    thing to rest a decision on, so it rests the right way up: no match means
+    real failure, and the units stay as they are.
+
+    Line by line, and the line has to name the reboot as well as the denial.
+    gloval logged "Call to Reboot failed: Access denied", which is systemctl's
+    "Call to %s failed: %s" with logind's method in it -- so the method name is
+    not pinned (RebootWithFlags is the same message), but a denial that does
+    not mention a reboot at all belongs to some other operation and is not
+    evidence about this one.
+    """
+    return any(
+        "reboot" in line.lower() and any(m in line for m in DENIAL_MARKERS)
+        for line in text.splitlines()
+    )
+
+
+def cycle_journal(units):
+    """The journal of these units over the window of the current cycle.
+
+    One call for all of them -- repeated --unit= is ORed -- and bounded at
+    both ends. The units are bootc's own: the apply unit, because bootc may
+    have relayed the refusal through its own stderr, and the transients
+    `systemd-run` made for the reboot, because that is where
+    `systemctl reboot` writes by default. Which of the two carries it is not
+    something that can be established from here, so both are read.
+
+    --since is what keeps this a statement about THIS cycle. Without it, one
+    genuine deferral earlier in the same boot would leave a denial in the
+    apply unit's journal that corroborated every real failure after it for the
+    rest of the boot. See CYCLE_WINDOW for where the twenty minutes comes
+    from.
+
+    --grep rather than --lines for the second bound. A line cap keeps the most
+    RECENT entries, so a chatty cycle would push the refusal out of view and
+    read as a real failure; asking journalctl for the matching lines bounds
+    the output without being able to hide the one line that matters. The
+    markers hold no regex metacharacters, and journalctl's smart case makes an
+    uppercase pattern case-sensitive, so this matches what denial_in() matches
+    -- which still has the last word on the result, because --grep is an
+    optimisation here and not the test.
+
+    The unfiltered read behind it covers a journalctl built without PCRE2,
+    which refuses --grep with the same exit status it uses for "nothing
+    matched" -- so the two are told apart by whether anything was written to
+    stderr, and the second read happens only on a complaint, not on every
+    real failure. Without it, such a host would run this fix forever while it
+    quietly did nothing.
+    """
+    if not units:
+        return ""
+    query = ["journalctl", "--no-pager", "--quiet", "--output=cat",
+             f"--since={CYCLE_WINDOW}", *(f"--unit={u}" for u in units)]
+    returncode, out, err = invoke([*query, f"--grep={'|'.join(DENIAL_MARKERS)}"])
+    if returncode == 0 or not err.strip():
+        return out
+    log(f"journalctl refused --grep ({err.strip()}); reading the window unfiltered")
+    return run(query)
+
+
+def gather():
+    """Collect everything the classifier needs from the live host."""
+    apply_props = show([APPLY_UNIT], APPLY_PROPERTIES).get(APPLY_UNIT, {})
+    transients = list(show(failed_services(), TRANSIENT_PROPERTIES).values())
+    # Only the units that could possibly matter. Reading the journal of every
+    # failed service on the host to answer a question about bootc's reboot
+    # would be work for its own sake.
+    candidates = [p["unit"] for p in transients
+                  if p.get("ActiveState") == "failed"
+                  and p.get("Transient") == "yes"
+                  and is_bootc_reboot(p)]
+    return {
+        "apply": apply_props,
+        "block_inhibited": block_inhibited(),
+        "inhibitor_table": inhibitor_table(),
+        "transients": transients,
+        "journal": cycle_journal([APPLY_UNIT, *candidates]),
+    }
+
+
+def shutdown_blocked(block_inhibited_value):
+    """True when a block inhibitor currently covers shutdown.
+
+    Split on the separator rather than searching for a substring: the what
+    list is colon-separated ("shutdown:sleep:idle") and a substring test would
+    be a sieve the day a new what contains this one's name.
+    """
+    return "shutdown" in [w for w in (block_inhibited_value or "").split(":") if w]
+
+
+def is_bootc_reboot(props):
+    """True when this transient's command is bootc's reboot.
+
+    ExecStart and nothing else. Description is tempting, because systemd-run
+    defaults it to the same command line and a second source looks like
+    insurance against systemd rendering ExecStart differently one day -- but a
+    description is a label anyone can set to anything, and this function
+    decides which failed units get their failure erased. That has to turn on
+    what the unit ran, not on what it was called. ExecStart's rendering is
+    stable enough to rest on: whatever the struct around it looks like, it
+    carries the full argv, which is where all three markers live.
+    """
+    command = props.get("ExecStart", "")
+    return bool(command) and all(marker in command for marker in BOOTC_REBOOT_MARKERS)
+
+
+def classify(state):
+    """Return (is_deferral, notes, units_to_reset).
+
+    notes is the reasoning, in order, for the journal. units_to_reset is empty
+    unless this is a deferral -- a real failure's state is never touched.
+    """
+    notes = []
+    apply_props = state.get("apply") or {}
+    result = apply_props.get("Result", "")
+    active = apply_props.get("ActiveState", "")
+    apply_started = monotonic(apply_props.get("InactiveExitTimestampMonotonic"))
+
+    whats = state.get("block_inhibited", "") or "none"
+    blocked = shutdown_blocked(state.get("block_inhibited"))
+    if blocked:
+        notes.append(f"a block inhibitor covers shutdown right now ({whats})")
+    else:
+        notes.append(f"no block inhibitor covers shutdown right now ({whats})")
+
+    bootc_transients, foreign = [], []
+    for props in state.get("transients") or []:
+        if props.get("unit") == APPLY_UNIT:
+            continue
+        if props.get("ActiveState") != "failed":
+            continue
+        # Transient=yes, not a name pattern. A unit installed under /etc or
+        # /usr is somebody's deliberate configuration and is never ours to
+        # reset, however it is named.
+        if props.get("Transient") != "yes":
+            continue
+        if is_bootc_reboot(props):
+            bootc_transients.append(props)
+        else:
+            foreign.append(props)
+
+    if foreign:
+        notes.append(
+            "leaving %d failed transient(s) that are not bootc's reboot: %s"
+            % (len(foreign), ", ".join(p.get("unit", "?") for p in foreign))
+        )
+
+    this_cycle = []
+    if apply_started is not None:
+        for props in bootc_transients:
+            started = monotonic(props.get("InactiveExitTimestampMonotonic"))
+            if started is not None and started >= apply_started:
+                this_cycle.append(props)
+
+    # Fact 1. Anything but a timeout is not a refused reboot: exit-code is a
+    # real apply failure, and signal is what a successful apply leaves behind
+    # on the way down, which also fires this unit.
+    if active != "failed":
+        notes.append(f"{APPLY_UNIT} is {active or 'unknown'}, not failed")
+        return False, notes, []
+    if result != "timeout":
+        notes.append(
+            f"{APPLY_UNIT} Result={result or 'unknown'}, not timeout"
+            + (" (the shape of a successful apply, not a refusal)"
+               if result == "signal" else "")
+        )
+        return False, notes, []
+    notes.append(f"{APPLY_UNIT} Result=timeout")
+
+    # Fact 2. The park has to be explained by a reboot that was asked for and
+    # refused. Without that artefact this is a timeout from something else --
+    # a hung fetch, say -- and hiding those is how an interlock becomes a way
+    # to never hear about broken updates again.
+    if apply_started is None:
+        notes.append(
+            f"{APPLY_UNIT} has no start timestamp this boot, so no transient "
+            "can be attributed to this run"
+        )
+        return False, notes, []
+    if not this_cycle:
+        notes.append(
+            "no failed transient from this run is running bootc's reboot"
+            + (" (%d older one(s) exist and are left alone)" % len(bootc_transients)
+               if bootc_transients else "")
+        )
+        return False, notes, []
+    notes.append(
+        "bootc asked for a reboot in this run and did not get it: %s"
+        % ", ".join(p.get("unit", "?") for p in this_cycle)
+    )
+
+    # Fact 3. The reboot must have been REFUSED, not merely unsuccessful.
+    # `systemctl reboot` can fail for reasons that are nothing to do with a
+    # backup, and those are real failures: a host whose reboot keeps failing
+    # on its own account would otherwise be swept clean every thirty minutes,
+    # never update, and never say so.
+    #
+    # The live inhibitor cannot carry this. It is the right cause, but it is
+    # read ten minutes after the effect -- TimeoutStartSec is 10min -- so it
+    # is both absent when a rotation has already ended and present when an
+    # unrelated rotation started after the reboot failed for its own reasons.
+    # It is logged above because it is what a person wants to see, and it
+    # decides nothing. The denial recorded during this cycle is the refusal
+    # itself, and that is what this turns on.
+    if not denial_in(state.get("journal", "") or ""):
+        notes.append(
+            "no refusal recorded in this cycle's journal, so the reboot "
+            "failed for its own reasons rather than being refused"
+        )
+        return False, notes, []
+    notes.append("this cycle's journal records the refusal")
+
+    # All three hold. Reset every failed transient attributable to bootc's
+    # reboot, not only this run's: each one is the wreckage of a refusal by
+    # the same test, and a backlog from before this unit shipped should not
+    # need a person with a keyboard either.
+    reset = [APPLY_UNIT] + [p["unit"] for p in bootc_transients]
+    return True, notes, reset
+
+
+def raised_for(argv):
+    """The exception invoke(..., check=True) raises for argv, or None."""
+    try:
+        invoke(argv, check=True)
+    except RuntimeError as caught:
+        return caught
+    return None
+
+
+def check_invoke():
+    """Check invoke()'s four outcomes against real commands.
+
+    No mocking: `true`, a command that prints and then exits non-zero, and a
+    path that does not exist cover success, a non-zero exit and a failure to
+    execute, which is all this wrapper has to get right. It is worth checking
+    because every classification path reads "" as absence of evidence and
+    therefore as a real failure, so a wrapper that returned output on a failed
+    command, or swallowed a failure under check, would move the bias in the one
+    direction it must never move.
+
+    The failing command has to produce output or the check is vacuous: `false`
+    alone prints nothing, so run() returning its stdout would pass unnoticed.
+
+    Returns a list of complaints, empty when all of them hold.
+    """
+    missing = "/nonexistent/bootc-apply-deferred-self-test"
+    noisy_failure = ["sh", "-c", "printf marker; exit 1"]
+    cases = []
+
+    returncode, out, _ = invoke(["true"])
+    if (returncode, out) != (0, ""):
+        cases.append(f"invoke(true) gave {(returncode, out)!r}")
+    if raised_for(["true"]) is not None:
+        cases.append("check=True raised for a command that succeeded")
+
+    returncode, out, _ = invoke(noisy_failure)
+    if returncode == 0:
+        cases.append("invoke() reported success for a command that exited 1")
+    if out != "marker":
+        cases.append(f"invoke() lost a failing command's output: {out!r}")
+    if run(noisy_failure) != "":
+        cases.append("run() returned a failing command's output")
+
+    returncode, _, err = invoke([missing])
+    if returncode == 0 or not err:
+        cases.append(f"invoke(missing) gave {(returncode, err)!r}")
+
+    # check=True has to raise AND say enough for the journal to tell a reset
+    # that would not happen from a retry that could not be armed: the command
+    # and whatever it complained about.
+    for argv, expected in ((noisy_failure, "marker"), ([missing], missing)):
+        caught = raised_for(argv)
+        if caught is None:
+            cases.append(f"check=True on {argv[0]} did not raise")
+        elif argv[0] not in str(caught) or expected not in str(caught):
+            cases.append(f"check=True on {argv[0]} did not report it: {caught}")
+
+    return cases
+
+
+def self_test(directory):
+    """Run classify() over every fixture in directory and check the result.
+
+    Each fixture carries its own "expect": {"deferral": bool, "reset": [...]},
+    which classify() never reads. Keeping the state and the expectation in one
+    file means a fixture cannot drift away from what it was written to prove.
+    """
+    failures = 0
+    for complaint in check_invoke():
+        print(f"FAIL invoke(): {complaint}", file=sys.stderr)
+        failures += 1
+    if not failures:
+        print("ok   invoke(): success, noisy failure, missing command, check=True")
+
+    names = sorted(n for n in os.listdir(directory) if n.endswith(".json"))
+    if not names:
+        print(f"bootc-apply-deferred self-test: no fixtures in {directory}",
+              file=sys.stderr)
+        return 1
+    for name in names:
+        with open(os.path.join(directory, name), encoding="utf-8") as handle:
+            fixture = json.load(handle)
+        expect = fixture.get("expect")
+        if not isinstance(expect, dict):
+            print(f"FAIL {name}: fixture records no expectation", file=sys.stderr)
+            failures += 1
+            continue
+        deferral, notes, reset = classify(fixture)
+        got = {"deferral": deferral, "reset": sorted(reset)}
+        want = {"deferral": expect.get("deferral"),
+                "reset": sorted(expect.get("reset", []))}
+        if got == want:
+            print(f"ok   {name}: {'deferral' if deferral else 'real failure'}")
+        else:
+            failures += 1
+            print(f"FAIL {name}: expected {want}, got {got}", file=sys.stderr)
+            for note in notes:
+                print(f"       {note}", file=sys.stderr)
+    if failures:
+        print(f"bootc-apply-deferred self-test: {failures} check(s) failed",
+              file=sys.stderr)
+        return 1
+    print(f"bootc-apply-deferred self-test: {len(names)} fixtures passed")
+    return 0
+
+
+def main(argv):
+    dry_run = "--dry-run" in argv
+
+    if "--self-test" in argv:
+        return self_test(argv[argv.index("--self-test") + 1])
+
+    if "--decide-from" in argv:
+        path = argv[argv.index("--decide-from") + 1]
+        with open(path, encoding="utf-8") as handle:
+            state = json.load(handle)
+        deferral, notes, reset = classify(state)
+        print(json.dumps(
+            {"deferral": deferral, "reset": reset, "notes": notes},
+            indent=2, sort_keys=True,
+        ))
+        return 0
+
+    state = gather()
+    table = state.get("inhibitor_table", "").strip()
+    if table:
+        log("block-mode inhibitors held:")
+        for line in table.splitlines():
+            log(f"  {line.rstrip()}")
+
+    deferral, notes, reset = classify(state)
+    for note in notes:
+        log(note)
+
+    if not deferral:
+        # Nothing is reset, on purpose. The failed units stay exactly as they
+        # are so that a person and the monitor both still see them, which is
+        # the whole point of not teaching the monitor to look away.
+        log("classified as a REAL failure: leaving every failed unit as it is")
+    else:
+        log("classified as a DEFERRAL: clearing %d failed unit(s): %s"
+            % (len(reset), ", ".join(reset)))
+        if not dry_run:
+            # One invocation for the lot. It also means a unit that refuses to
+            # reset fails this unit rather than leaving a half-cleaned host
+            # that reports itself clean.
+            run(["systemctl", "reset-failed", *reset], check=True)
+            log("reset-failed done")
+
+    # Armed in both branches, which is what the drop-in's OnFailure= did
+    # before this unit stood between them -- the defect being fixed is the
+    # failed units, not the retry policy. It is also the right call on a real
+    # failure: the common one is a transient fetch error, and one attempt
+    # thirty minutes out is what fixes it without anyone being woken up. The
+    # failed unit is what gets a person involved when it does not; the retry
+    # is what means nobody had to be.
+    if dry_run:
+        log(f"would start {RETRY_TIMER}")
+        return 0
+
+    # Blocking, not --no-block, so a retry that could not be armed fails THIS
+    # unit and is seen. It cannot deadlock on the start job it is waiting for:
+    # the timer has no ordering relation to this service in either direction,
+    # and an ordering dependency only holds between jobs in one transaction,
+    # which this separate `systemctl start` is not part of. The unit still
+    # carries a short TimeoutStartSec so that reasoning being wrong costs two
+    # minutes rather than the host's update path.
+    run(["systemctl", "start", RETRY_TIMER], check=True)
+    log(f"armed {RETRY_TIMER}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Exception as err:  # noqa: BLE001 - the message belongs in the journal
+        log(f"error: {err}")
+        sys.exit(1)
