@@ -7,6 +7,23 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **The interlock's two halves were verified on the live host** (RT #1594),
+  with timestamps recorded in the drop-in beside the settings they justify. A
+  reboot that bootc requested while a pCloud rotation held the block inhibitor
+  was refused outright ("Call to Reboot failed: Access denied") and the
+  rotation ran on to a clean finish; the same unit started again with nothing
+  holding the lock applied the staged image and rebooted.
+
+  Also documented there: a *successful* apply records
+  `Failed with result 'signal'` for this unit in the journal of the boot it
+  ends, because the reboot it asked for tears the unit down and its own
+  process takes the SIGTERM. `OnFailure=` fires on the way down, the retry
+  timer's start job dies with the shutdown, and nothing survives the reboot —
+  cosmetic, but it is the expected shape of success, and worth knowing before
+  someone reads it as a refused reboot. A refusal looks different: "Access
+  denied" in the journal and this unit sitting in `activating` until the start
+  timeout cuts it.
+
 - **The bootc apply now defers for a backup instead of killing it** (RT #1594).
   A drop-in on `bootc-fetch-apply-updates.service` and a `bootc-apply-retry`
   timer, the host half of an interlock whose other half is the block shutdown
