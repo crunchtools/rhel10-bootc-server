@@ -524,43 +524,62 @@ def classify(state):
     return True, notes, reset
 
 
+def raised_for(argv):
+    """The exception invoke(..., check=True) raises for argv, or None."""
+    try:
+        invoke(argv, check=True)
+    except RuntimeError as caught:
+        return caught
+    return None
+
+
 def check_invoke():
     """Check invoke()'s four outcomes against real commands.
 
-    No mocking: `true`, `false` and a path that does not exist cover success,
-    a non-zero exit and a failure to execute, which is all this wrapper has to
-    get right. It is worth checking because every classification path reads
-    "" as absence of evidence and therefore as a real failure, so a wrapper
-    that returned output on a failed command, or swallowed a failure under
-    check, would move the bias in the one direction it must never move.
+    No mocking: `true`, a command that prints and then exits non-zero, and a
+    path that does not exist cover success, a non-zero exit and a failure to
+    execute, which is all this wrapper has to get right. It is worth checking
+    because every classification path reads "" as absence of evidence and
+    therefore as a real failure, so a wrapper that returned output on a failed
+    command, or swallowed a failure under check, would move the bias in the one
+    direction it must never move.
 
-    Returns a list of complaints, empty when all four hold.
+    The failing command has to produce output or the check is vacuous: `false`
+    alone prints nothing, so run() returning its stdout would pass unnoticed.
+
+    Returns a list of complaints, empty when all of them hold.
     """
     missing = "/nonexistent/bootc-apply-deferred-self-test"
+    noisy_failure = ["sh", "-c", "printf marker; exit 1"]
     cases = []
 
     returncode, out, _ = invoke(["true"])
     if (returncode, out) != (0, ""):
         cases.append(f"invoke(true) gave {(returncode, out)!r}")
+    if raised_for(["true"]) is not None:
+        cases.append("check=True raised for a command that succeeded")
 
-    returncode, out, _ = invoke(["false"])
+    returncode, out, _ = invoke(noisy_failure)
     if returncode == 0:
-        cases.append("invoke(false) reported success")
-    if run(["false"]) != "":
-        cases.append("run(false) returned output")
+        cases.append("invoke() reported success for a command that exited 1")
+    if out != "marker":
+        cases.append(f"invoke() lost a failing command's output: {out!r}")
+    if run(noisy_failure) != "":
+        cases.append("run() returned a failing command's output")
 
     returncode, _, err = invoke([missing])
     if returncode == 0 or not err:
         cases.append(f"invoke(missing) gave {(returncode, err)!r}")
 
-    for argv in (["false"], [missing]):
-        try:
-            invoke(argv, check=True)
-        except RuntimeError as caught:
-            if argv[0] not in str(caught):
-                cases.append(f"check=True on {argv[0]} did not name it: {caught}")
-        else:
+    # check=True has to raise AND say enough for the journal to tell a reset
+    # that would not happen from a retry that could not be armed: the command
+    # and whatever it complained about.
+    for argv, expected in ((noisy_failure, "marker"), ([missing], missing)):
+        caught = raised_for(argv)
+        if caught is None:
             cases.append(f"check=True on {argv[0]} did not raise")
+        elif argv[0] not in str(caught) or expected not in str(caught):
+            cases.append(f"check=True on {argv[0]} did not report it: {caught}")
 
     return cases
 
@@ -577,7 +596,7 @@ def self_test(directory):
         print(f"FAIL invoke(): {complaint}", file=sys.stderr)
         failures += 1
     if not failures:
-        print("ok   invoke(): success, non-zero exit, missing command, check=True")
+        print("ok   invoke(): success, noisy failure, missing command, check=True")
 
     names = sorted(n for n in os.listdir(directory) if n.endswith(".json"))
     if not names:
