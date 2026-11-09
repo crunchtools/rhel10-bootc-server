@@ -79,9 +79,9 @@ Usage:
   bootc-apply-deferred --dry-run       classify the live host, change nothing
   bootc-apply-deferred --decide-from F classify the state in JSON file F and
                                        print the decision, touching no unit
-  bootc-apply-deferred --self-test D   classify every fixture in directory D
-                                       and check each against its own
-                                       recorded expectation.
+  bootc-apply-deferred --self-test D   check the subprocess wrapper, then
+                                       classify every fixture in directory D
+                                       against its own recorded expectation.
 
 The last two exist because this decides when to erase the evidence of a
 failure, and "looks right" is not evidence for that. The image build runs
@@ -524,6 +524,47 @@ def classify(state):
     return True, notes, reset
 
 
+def check_invoke():
+    """Check invoke()'s four outcomes against real commands.
+
+    No mocking: `true`, `false` and a path that does not exist cover success,
+    a non-zero exit and a failure to execute, which is all this wrapper has to
+    get right. It is worth checking because every classification path reads
+    "" as absence of evidence and therefore as a real failure, so a wrapper
+    that returned output on a failed command, or swallowed a failure under
+    check, would move the bias in the one direction it must never move.
+
+    Returns a list of complaints, empty when all four hold.
+    """
+    missing = "/nonexistent/bootc-apply-deferred-self-test"
+    cases = []
+
+    returncode, out, _ = invoke(["true"])
+    if (returncode, out) != (0, ""):
+        cases.append(f"invoke(true) gave {(returncode, out)!r}")
+
+    returncode, out, _ = invoke(["false"])
+    if returncode == 0:
+        cases.append("invoke(false) reported success")
+    if run(["false"]) != "":
+        cases.append("run(false) returned output")
+
+    returncode, _, err = invoke([missing])
+    if returncode == 0 or not err:
+        cases.append(f"invoke(missing) gave {(returncode, err)!r}")
+
+    for argv in (["false"], [missing]):
+        try:
+            invoke(argv, check=True)
+        except RuntimeError as caught:
+            if argv[0] not in str(caught):
+                cases.append(f"check=True on {argv[0]} did not name it: {caught}")
+        else:
+            cases.append(f"check=True on {argv[0]} did not raise")
+
+    return cases
+
+
 def self_test(directory):
     """Run classify() over every fixture in directory and check the result.
 
@@ -531,12 +572,18 @@ def self_test(directory):
     which classify() never reads. Keeping the state and the expectation in one
     file means a fixture cannot drift away from what it was written to prove.
     """
+    failures = 0
+    for complaint in check_invoke():
+        print(f"FAIL invoke(): {complaint}", file=sys.stderr)
+        failures += 1
+    if not failures:
+        print("ok   invoke(): success, non-zero exit, missing command, check=True")
+
     names = sorted(n for n in os.listdir(directory) if n.endswith(".json"))
     if not names:
         print(f"bootc-apply-deferred self-test: no fixtures in {directory}",
               file=sys.stderr)
         return 1
-    failures = 0
     for name in names:
         with open(os.path.join(directory, name), encoding="utf-8") as handle:
             fixture = json.load(handle)
@@ -557,8 +604,8 @@ def self_test(directory):
             for note in notes:
                 print(f"       {note}", file=sys.stderr)
     if failures:
-        print(f"bootc-apply-deferred self-test: {failures} of {len(names)} "
-              "fixtures failed", file=sys.stderr)
+        print(f"bootc-apply-deferred self-test: {failures} check(s) failed",
+              file=sys.stderr)
         return 1
     print(f"bootc-apply-deferred self-test: {len(names)} fixtures passed")
     return 0

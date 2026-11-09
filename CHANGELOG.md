@@ -91,6 +91,12 @@ All notable changes to this project are documented here. The format follows
   keep unattended updates off it, and nothing added for the interlock may
   quietly become the path that was masked.
 
+  `--self-test` also checks the subprocess wrapper's four outcomes against
+  real commands — `true`, `false` and a path that does not exist — because
+  every classification path reads an empty result as absence of evidence and
+  therefore as a real failure, so a wrapper that returned output from a failed
+  command would move the bias in the one direction it must never move.
+
   The classifier is self-tested in the image build against nineteen
   host-state fixtures, which stay at
   `/usr/share/bootc-apply-deferred/testdata` so the check can be re-run on a
