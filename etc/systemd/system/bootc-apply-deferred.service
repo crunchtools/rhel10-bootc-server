@@ -10,12 +10,13 @@
 # What it is for: a DEFERRED apply should leave the host with no failed units,
 # while a GENUINE apply failure stays as visible as it was. Both the test and
 # the reasoning behind it are in /usr/libexec/bootc-apply-deferred; the short
-# version is that the apply unit must have ended Result=timeout and a failed
-# transient from the same run must be bootc's refused `systemctl reboot`.
-# Anything it cannot positively identify as a deferral it leaves failed.
+# version is three facts, all required -- the apply unit ended Result=timeout,
+# a failed transient from the same run is bootc's `systemctl reboot`, and this
+# cycle's journal records logind refusing it. Anything it cannot positively
+# identify as a deferral it leaves failed.
 [Unit]
 Description=Sort a deferred bootc apply from a failed one (RT #1594)
-Documentation=man:systemd-inhibit(1) man:bootc-upgrade(8) man:systemd.unit(5)
+Documentation=man:systemd-inhibit(1) man:journalctl(1) man:bootc-upgrade(8)
 
 [Service]
 Type=oneshot

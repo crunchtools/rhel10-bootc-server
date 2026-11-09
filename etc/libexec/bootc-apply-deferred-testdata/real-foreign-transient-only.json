@@ -9,6 +9,7 @@
     "deferral": false,
     "reset": []
   },
+  "journal": "",
   "transients": [
     {
       "ActiveState": "failed",

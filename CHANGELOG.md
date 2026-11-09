@@ -26,27 +26,44 @@ All notable changes to this project are documented here. The format follows
   `OnFailure=` on the drop-in now points at a new
   `bootc-apply-deferred.service` instead of straight at the retry timer,
   because a dependency cannot tell a deferral from a failure and a decision
-  can. It calls `/usr/libexec/bootc-apply-deferred`, which requires two facts
-  before it clears anything: the apply unit ended `Result=timeout`, and a
-  failed transient *from that same run* is running bootc's reboot. Both come
-  from `systemctl show`. Only then does it `reset-failed` the apply unit and
-  every failed transient attributable to bootc's reboot; on anything else it
-  changes no failed state at all and the host stays exactly as loud as before.
-  Either way it arms `bootc-apply-retry.timer`, which is what pointing at the
-  timer did before.
+  can. It calls `/usr/libexec/bootc-apply-deferred`, which requires three
+  facts before it clears anything: the apply unit ended `Result=timeout`; a
+  failed transient *from that same run* is running bootc's reboot; and this
+  cycle's journal records logind **refusing** it. Only then does it
+  `reset-failed` the apply unit and every failed transient attributable to
+  bootc's reboot; on anything else it changes no failed state at all and the
+  host stays exactly as loud as before. Either way it arms
+  `bootc-apply-retry.timer`, which is what pointing at the timer did before.
 
-  The second fact is where this departs from the obvious design, which would
-  be "a block shutdown inhibitor is held right now". That is the right cause,
-  but `TimeoutStartSec` is 10 minutes, so it is checked ten minutes after its
-  own effect — a rotation finishing inside that window would make a real
-  deferral look like a real failure and leave the units this exists to clear.
-  On 11-09 the refusal was at 02:19:06 and the rotation finished at 02:31:16,
-  about two and a half minutes clear of the timeout. So the inhibitor is read
-  from logind's own `BlockInhibited` property, logged with
-  `systemd-inhibit --list` so the journal names whoever held it, and reported
-  as corroboration — but the decision rests on the refusal's artefact. The
-  bias throughout is one-directional: anything that cannot be positively
-  identified as a deferral is left failed.
+  The third fact exists because `systemctl reboot` can fail for reasons that
+  are nothing to do with a backup, and those are real failures. Without it, a
+  host whose reboot kept failing on its own account would be swept clean every
+  thirty minutes, never update, and never say so — the exact silence this
+  change is meant to be the opposite of. The denial is read from bootc's own
+  units over a twenty-minute window — derived from the drop-in's 10-minute
+  start timeout and the retry timer's 30-minute cadence — so that one genuine
+  deferral earlier in a boot cannot corroborate every real failure after it.
+  A window rather than the apply unit's own start converted to a date:
+  systemd reports that start on `CLOCK_MONOTONIC`, and converting it drifts by
+  however long the host has been suspended, measured at five minutes on a
+  laptop here, which would put the window *after* the refusal and lose it.
+
+  It is deliberately *not* the obvious test, "a block shutdown inhibitor is
+  held right now". That is the right cause read ten minutes after its own
+  effect, since `TimeoutStartSec` is 10 minutes, and it is wrong in both
+  directions. It is absent when the rotation ended inside that window: on
+  11-09 the refusal was at 02:19:06 and the rotation finished at 02:31:16,
+  about two and a half minutes clear of the timeout, one slower start from
+  reading a genuine deferral as a failure. And it is present when an unrelated
+  rotation merely started after a reboot had already failed for its own
+  reasons, which would sweep a real failure. So logind's `BlockInhibited` and
+  the block-mode rows of `systemd-inhibit --list` are logged, because they are
+  what a person wants to see on a Saturday night, and they decide nothing.
+
+  A diagnostic string is a thin thing to rest on, and it rests the right way
+  up: no denial matched means real failure and nothing is touched. If logind's
+  wording ever changes, this stops cleaning up and says so in the journal.
+  That is the direction every uncertainty here is pointed.
 
   Three cases it must not get wrong, and does not. A *successful* apply ends
   `Result=signal`, not `timeout`, and fires this same `OnFailure=` on the way
@@ -62,8 +79,8 @@ All notable changes to this project are documented here. The format follows
   keep unattended updates off it, and nothing added for the interlock may
   quietly become the path that was masked.
 
-  The classifier is self-tested in the image build against thirteen
-  `systemctl show` fixtures, which stay at
+  The classifier is self-tested in the image build against eighteen
+  host-state fixtures, which stay at
   `/usr/share/bootc-apply-deferred/testdata` so the check can be re-run on a
   host. It is tested because it decides when to erase the evidence of a
   failure, and because the live case cannot be reproduced on gloval without

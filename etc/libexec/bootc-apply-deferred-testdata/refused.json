@@ -12,6 +12,7 @@
       "run-p220259-i220260.service"
     ]
   },
+  "journal": "Initiating reboot\nCall to Reboot failed: Access denied\n",
   "transients": [
     {
       "ActiveState": "failed",

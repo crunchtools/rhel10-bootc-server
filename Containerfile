@@ -83,10 +83,12 @@ RUN set -e; \
 # unit, which is to say when to erase the evidence of a failure, and it cannot
 # be exercised on the host: reproducing the live case means holding a block
 # inhibitor through a real apply and waiting out a ten-minute timeout. The
-# fixtures are `systemctl show` states -- the 11-09 refusal, that refusal with
-# the rotation already finished, a real exit-code failure, the 'signal' result
-# every SUCCESSFUL apply leaves on the way down, a timeout where no reboot was
-# ever attempted, a stale transient, a failed transient belonging to something
+# fixtures are host states -- the 11-09 refusal, that refusal with the rotation
+# already finished, both of logind's refusal wordings, a real exit-code
+# failure, the 'signal' result every SUCCESSFUL apply leaves on the way down, a
+# timeout where no reboot was ever attempted, a reboot that failed without
+# being refused while an unrelated rotation ran, a block inhibitor with nothing
+# in the journal, a stale transient, a failed transient belonging to something
 # else, and a deferral that must clear one while leaving the other. Each one
 # carries the decision it must produce.
 RUN /usr/libexec/bootc-apply-deferred --self-test \
