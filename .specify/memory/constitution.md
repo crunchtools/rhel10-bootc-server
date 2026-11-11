@@ -4,7 +4,7 @@
 > **Ratified:** 2026-03-03
 > **Amended:** 2026-10-02
 > **Status:** Active
-> **Inherits:** [crunchtools/constitution](https://github.com/crunchtools/constitution) v1.31.0
+> **Inherits:** [crunchtools/constitution](https://github.com/crunchtools/constitution) v1.39.2
 > **Profile:** Bootc Image
 
 This file holds what is specific to rhel10-bootc-server. The fleet rules and
@@ -20,7 +20,7 @@ through `podman-auto-update.timer`.
 
 - **Base image:** `registry.redhat.io/rhel10/rhel-bootc` (no crunchtools
   parent; this image is the top of its cascade).
-- **Image:** `quay.io/crunchtools/rhel10-bootc-server`, mirrored to GHCR.
+- **Image:** `quay.io/crunchtools/rhel10-bootc-server` (Quay.io is the only registry).
 - **Enabled units:** `cockpit.socket` (web console), `podman-auto-update.timer`
   (container updates), `fstrim.timer` (periodic TRIM),
   `systemd-oomd.service` (memory pressure), `sysstat.service` (sar data collection),
