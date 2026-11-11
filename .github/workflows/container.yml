@@ -1,0 +1,44 @@
+# Container release: build once per change, gate the digest, promote what was
+# tested (constitution III and Container Image VII). Quay.io only.
+#
+# A bootc host image: built as a plain OCI manifest, gated by
+# `bootc container lint` against the pushed digest. Hosts follow the tag they
+# were switched to with `bootc switch`; :main moves on merge, :latest on v*.
+
+name: Container
+
+on:
+  pull_request:
+    paths: ['Containerfile', 'etc/**', '.github/workflows/container.yml']
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths: ['Containerfile', 'etc/**', '.github/workflows/container.yml']
+  schedule:
+    - cron: "47 5 * * 1"   # weekly: base-image errata, gated like any build
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  container:
+    uses: crunchtools/constitution/.github/workflows/container-release.yml@v1.39.2
+    permissions:
+      contents: read
+      pull-requests: read
+    with:
+      image: quay.io/crunchtools/rhel10-bootc-server
+      format: oci
+      free-disk: true
+      redhat-registry: true
+      rhsm: true
+      boot: command
+      boot-command: podman run --rm "$IMAGE" bootc container lint
+      boot-timeout: 600
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+      REGISTRY_REDHAT_IO_USER: ${{ secrets.REGISTRY_REDHAT_IO_USER }}
+      REGISTRY_REDHAT_IO_PASSWORD: ${{ secrets.REGISTRY_REDHAT_IO_PASSWORD }}
+      RHSM_ACTIVATION_KEY: ${{ secrets.RHSM_ACTIVATION_KEY }}
+      RHSM_ORG_ID: ${{ secrets.RHSM_ORG_ID }}
