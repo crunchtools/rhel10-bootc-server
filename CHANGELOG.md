@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-11
+
 ### Fixed
 - **A deferred bootc apply no longer leaves failed units behind** (RT #1566,
   RT #1594). The interlock worked and still reported the host as broken for
