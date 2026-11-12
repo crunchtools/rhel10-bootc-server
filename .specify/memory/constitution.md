@@ -4,7 +4,7 @@
 > **Ratified:** 2026-03-03
 > **Amended:** 2026-10-02
 > **Status:** Active
-> **Inherits:** [crunchtools/constitution](https://github.com/crunchtools/constitution) v1.39.2
+> **Inherits:** [crunchtools/constitution](https://github.com/crunchtools/constitution) v1.39.5
 > **Profile:** Bootc Image
 
 This file holds what is specific to rhel10-bootc-server. The fleet rules and
