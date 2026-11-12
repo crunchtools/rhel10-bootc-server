@@ -1,12 +1,5 @@
 FROM registry.redhat.io/rhel10/rhel-bootc
 
-# Register with RHSM using activation key (secrets mounted at build time, never in image layers)
-RUN --mount=type=secret,id=activation_key \
-    --mount=type=secret,id=org_id \
-    subscription-manager register \
-        --activationkey=$(cat /run/secrets/activation_key) \
-        --org=$(cat /run/secrets/org_id)
-
 # Setup Repositories
 COPY etc/yum.repos.d/epel.repo /etc/yum.repos.d/epel.repo
 COPY etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-10 /etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-10
@@ -14,25 +7,36 @@ COPY etc/yum.repos.d/crunchtools.repo /etc/yum.repos.d/crunchtools.repo
 COPY etc/pki/rpm-gpg/RPM-GPG-KEY-crunchtools /etc/pki/rpm-gpg/RPM-GPG-KEY-crunchtools
 COPY etc/bashrc.customizations /etc/bashrc.customizations
 
-# Combined dnf operations: update and install in one layer with --nodocs
-RUN dnf update -y && \
-    dnf install -y --nodocs \
-        cockpit \
-        petit \
-        git \
-        vim-enhanced \
-        nodejs24 \
-        python3-pip \
-        python3-devel \
-        sqlite \
-        rclone \
-        rsyslog \
-        gh \
-        uv \
-        sysstat \
-        systemd-oomd && \
-    dnf clean all && \
-    rm -rf /var/cache/dnf /var/cache/yum
+# Register, update/install, and unregister in ONE layer with a trap so
+# unregister+clean run on any exit (constitution II) — no RHSM consumer leaks
+# into console.redhat.com inventory as a ghost host. The repo files COPYed above
+# do not need registration; only the dnf transaction does.
+RUN --mount=type=secret,id=activation_key \
+    --mount=type=secret,id=org_id <<'EOF'
+set -euo pipefail
+subscription-manager register \
+    --activationkey="$(cat /run/secrets/activation_key)" \
+    --org="$(cat /run/secrets/org_id)"
+trap 'subscription-manager unregister || true; subscription-manager clean || true' EXIT
+dnf update -y
+dnf install -y --nodocs \
+    cockpit \
+    petit \
+    git \
+    vim-enhanced \
+    nodejs24 \
+    python3-pip \
+    python3-devel \
+    sqlite \
+    rclone \
+    rsyslog \
+    gh \
+    uv \
+    sysstat \
+    systemd-oomd
+dnf clean all
+rm -rf /var/cache/dnf /var/cache/yum
+EOF
 
 # Host log forwarding. rsyslog.conf REPLACES the stock RHEL one, which reads
 # the journal with imjournal -- that module silently stops following after a
@@ -193,9 +197,8 @@ RUN systemctl set-default multi-user.target && \
     ln -s /usr/bin/fusermount3 /usr/bin/fusermount && \
     rm -f /etc/motd.d/insights-client
 
-# Unregister from RHSM and clean up
-RUN subscription-manager unregister && \
-    rm -rf /var/run \
+# Clean up (RHSM unregister happens via the trap in the dnf layer above)
+RUN rm -rf /var/run \
     /var/log/*.log \
     /var/log/dnf* \
     /var/log/hawkey* \
