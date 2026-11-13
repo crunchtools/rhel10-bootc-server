@@ -35,5 +35,5 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOShcSBdLmP9zL3uAqBGGF3RSg8fuaGqnJ5lnZ+q8lzJ
 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPaBoMWkxQxQYVise4oQRd0SrXqnH25YMienQWikM3q9 smccarty-csb (breetai<->dolza CSB peer)
 KEYS
 chmod 0600 /root/.ssh/authorized_keys
-restorecon -R /root/.ssh || true
+restorecon -R /root/.ssh
 %end
