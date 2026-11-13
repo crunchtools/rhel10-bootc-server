@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-13
+
+### Added
+- **Wi-Fi support** (RT#1628): `NetworkManager-wifi` and `wpa_supplicant`.
+  Exedore sits upstairs with no Ethernet run, so it lives on Wi-Fi. The
+  MT7925 firmware was already in the image; the NetworkManager plugin and
+  supplicant were not, so a Wi-Fi host installed fine and came up offline.
+  On hosts with no radio, such as gloval, both stay idle.
+
 ## [1.1.1] - 2026-11-11
 
 ### Fixed
