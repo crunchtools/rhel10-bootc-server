@@ -45,6 +45,7 @@ EOF
 # journal rotation and takes the whole ingest path down with it. Here journald
 # forwards to the syslog socket instead and rsyslog only relays onward.
 COPY etc/rsyslog.conf /etc/rsyslog.conf
+COPY etc/rsyslog-collector /etc/rsyslog-collector
 COPY etc/systemd/journald.conf.d/10-forward-to-syslog.conf /etc/systemd/journald.conf.d/10-forward-to-syslog.conf
 COPY etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf /etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf
 COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/containers.conf.d/50-exec-cleanup.conf
