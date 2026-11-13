@@ -1,0 +1,41 @@
+# Wi-Fi for a kickstart install of this image. Append to a LOCAL copy of the
+# host kickstart and replace @SSID@ / @PSK@. The installer joins Wi-Fi in %pre
+# (the ostreecontainer pull needs the network), and %post writes the same
+# connection into the installed system so it comes up on Wi-Fi.
+
+%pre --log=/tmp/wifi-pre.log
+set -x
+for i in $(seq 1 30); do nmcli -t -f TYPE device | grep -qx wifi && break; sleep 2; done
+nmcli radio wifi on
+for i in 1 2 3 4 5 6; do
+  nmcli device wifi rescan || true; sleep 4
+  nmcli device wifi connect "@SSID@" password "@PSK@" && break
+done
+for i in $(seq 1 30); do getent hosts quay.io && break; sleep 2; done
+%end
+
+%post --erroronfail
+install -d -m 0700 /etc/NetworkManager/system-connections
+cat > /etc/NetworkManager/system-connections/wifi.nmconnection <<'NM'
+[connection]
+id=wifi
+type=wifi
+autoconnect=true
+
+[wifi]
+mode=infrastructure
+ssid=@SSID@
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=@PSK@
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto
+NM
+chmod 0600 /etc/NetworkManager/system-connections/wifi.nmconnection
+restorecon -R /etc/NetworkManager/system-connections
+%end

@@ -10,7 +10,10 @@ lang en_US.UTF-8
 keyboard us
 timezone America/New_York --utc
 
-network --bootproto=dhcp --device=link --activate --onboot=yes --hostname=exedore.dc2.crunchtools.com
+# No Ethernet on this host: the network comes from install/wifi.ks.example
+# (%pre joins Wi-Fi in the installer, %post persists it). Merge it into a
+# local copy with the real SSID/PSK; never commit the key.
+network --hostname=exedore.dc2.crunchtools.com
 
 # Only ever touch the internal NVMe. The 4 TB cold-copy drive must never be a
 # candidate, even if someone plugs it in early.
