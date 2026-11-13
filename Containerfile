@@ -200,6 +200,11 @@ RUN systemctl set-default multi-user.target && \
     ln -s /usr/bin/fusermount3 /usr/bin/fusermount && \
     rm -f /etc/motd.d/insights-client
 
+# Log forwarding reaches RSYSLOG_COLLECTOR, end to end (tests/forward-target.sh).
+# rsyslogd -N1 passed a version of this that forwarded nowhere.
+RUN --mount=type=bind,source=tests,target=/run/tests,z \
+    /run/tests/forward-target.sh
+
 # Clean up (RHSM unregister happens via the trap in the dnf layer above)
 RUN rm -rf /var/run \
     /var/log/*.log \
