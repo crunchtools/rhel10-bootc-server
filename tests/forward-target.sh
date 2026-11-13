@@ -12,11 +12,17 @@ set -euo pipefail
 CONF=/etc/rsyslog.conf
 DROPIN=/etc/systemd/system/rsyslog.service.d/20-collector.conf
 W=$(mktemp -d)
-# World-readable on purpose: rsyslogd sheds capabilities (CAP_DAC_OVERRIDE
-# among them) before it reads its config, and in CI's build sandbox it then
-# could not open a root-only 0600 file. Nothing here is secret.
+# World-readable: nothing here is secret, and it keeps file modes out of the
+# way of whatever sandbox the build runs in.
 chmod 0755 "$W"
 umask 022
+
+# The same binary at another path. CI builds on Ubuntu, whose AppArmor profile
+# for /usr/sbin/rsyslogd attaches by path -- even inside a container -- and
+# only lets it read config under /etc/rsyslog*, so the test daemons could not
+# open their own files. The copy is byte-identical; only the path differs.
+RSYSLOGD="$W/rsyslogd"
+cp /usr/sbin/rsyslogd "$RSYSLOGD"
 trap 'kill $(cat "$W"/*.pid 2>/dev/null) 2>/dev/null || true; rm -rf "$W"' EXIT
 
 # The default, read the way systemd would: from the drop-in's Environment=.
@@ -52,8 +58,8 @@ template(name="m" type="string" string="%msg%\n")
 :msg, contains, "probe-$n" action(type="omfile" file="$W/$n-rx/got" template="m")
 RX
     sender_conf "$n" > "$W/$n/tx.conf"
-    rsyslogd -f "$W/$n-rx/rx.conf" -i "$W/$n-rx.pid"
-    RSYSLOG_COLLECTOR="$target" rsyslogd -f "$W/$n/tx.conf" -i "$W/$n.pid"
+    "$RSYSLOGD" -f "$W/$n-rx/rx.conf" -i "$W/$n-rx.pid"
+    RSYSLOG_COLLECTOR="$target" "$RSYSLOGD" -f "$W/$n/tx.conf" -i "$W/$n.pid"
     for _ in $(seq 20); do [ -S "$W/$n/log.sock" ] && break; sleep 0.25; done
     logger -u "$W/$n/log.sock" "probe-$n"
     for _ in $(seq 40); do grep -q "probe-$n" "$W/$n-rx/got" 2>/dev/null && break; sleep 0.25; done
