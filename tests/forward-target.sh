@@ -12,6 +12,11 @@ set -euo pipefail
 CONF=/etc/rsyslog.conf
 DROPIN=/etc/systemd/system/rsyslog.service.d/20-collector.conf
 W=$(mktemp -d)
+# World-readable on purpose: rsyslogd sheds capabilities (CAP_DAC_OVERRIDE
+# among them) before it reads its config, and in CI's build sandbox it then
+# could not open a root-only 0600 file. Nothing here is secret.
+chmod 0755 "$W"
+umask 022
 trap 'kill $(cat "$W"/*.pid 2>/dev/null) 2>/dev/null || true; rm -rf "$W"' EXIT
 
 # The default, read the way systemd would: from the drop-in's Environment=.
