@@ -49,7 +49,11 @@ container lint` passes.
 
 `etc/rsyslog.conf` replaces the stock RHEL file. journald forwards to the
 syslog socket (`ForwardToSyslog=yes`) and rsyslog only relays to a collector
-on `127.0.0.1:514` over TCP, with a disk-backed queue (500 MB). The stock
+on port 514 over TCP, with a disk-backed queue (500 MB). The collector address
+is `RSYSLOG_COLLECTOR`: `127.0.0.1` by default (gloval, where the collector
+runs), overridden per host in `/etc/sysconfig/rsyslog-collector` -- overlay
+hosts use gloval's WireGuard address, `10.44.0.1`. Never a public or
+Cloudflare-proxied name. The stock
 `imjournal` input is not used: it stops following after a journal rotation
 and takes the ingest path down silently. The rsyslog drop-in makes
 `syslog.socket` an explicit dependency so forwarded messages always have a

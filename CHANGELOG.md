@@ -11,10 +11,11 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - **Each host can choose where it ships its logs** (RT#1628). The forwarder's
   destination moves from a hard-coded `127.0.0.1` in `rsyslog.conf` to
-  `/etc/rsyslog-collector`, which the image ships as `127.0.0.1` (gloval, where
-  the collector runs). Exedore was the first host that is not gloval, and its
-  forwarder failed to connect every ten seconds and spooled to disk. Overlay
-  hosts now set the file to `10.44.0.1`; bootc keeps the edit across updates.
+  `RSYSLOG_COLLECTOR`, which an rsyslog drop-in defaults to `127.0.0.1` (gloval,
+  where the collector runs) and `/etc/sysconfig/rsyslog-collector` overrides.
+  Exedore was the first host that is not gloval, and its forwarder failed to
+  connect every ten seconds and spooled to disk. Overlay
+  hosts set `RSYSLOG_COLLECTOR=10.44.0.1`; bootc keeps the file across updates.
 
 ## [1.2.0] - 2026-11-13
 
