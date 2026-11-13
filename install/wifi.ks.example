@@ -3,15 +3,18 @@
 # (the ostreecontainer pull needs the network), and %post writes the same
 # connection into the installed system so it comes up on Wi-Fi.
 
-%pre --log=/tmp/wifi-pre.log
-set -x
+%pre --erroronfail --log=/tmp/wifi-pre.log
+# No set -x: it would trace the PSK into the log, which Anaconda copies
+# onto the installed disk.
 for i in $(seq 1 30); do nmcli -t -f TYPE device | grep -qx wifi && break; sleep 2; done
 nmcli radio wifi on
 for i in 1 2 3 4 5 6; do
   nmcli device wifi rescan || true; sleep 4
   nmcli device wifi connect "@SSID@" password "@PSK@" && break
 done
-for i in $(seq 1 30); do getent hosts quay.io && break; sleep 2; done
+for i in $(seq 1 30); do getent hosts quay.io >/dev/null && exit 0; sleep 2; done
+echo "Wi-Fi: no route to quay.io after joining @SSID@" >&2
+exit 1
 %end
 
 %post --erroronfail
