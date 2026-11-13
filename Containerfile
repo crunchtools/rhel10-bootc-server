@@ -33,7 +33,9 @@ dnf install -y --nodocs \
     gh \
     uv \
     sysstat \
-    systemd-oomd
+    systemd-oomd \
+    NetworkManager-wifi \
+    wpa_supplicant
 dnf clean all
 rm -rf /var/cache/dnf /var/cache/yum
 EOF
