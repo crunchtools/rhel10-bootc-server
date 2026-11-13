@@ -23,8 +23,12 @@ grep -q '^EnvironmentFile=-/etc/sysconfig/rsyslog-collector$' "$DROPIN" \
 # The shipped config, with its inputs swapped for a private socket and its
 # port moved off 514 (nothing in a build may bind that). Everything about the
 # forward action -- the backtick target included -- is the real one.
+#
+# libcapng.enable="off" in both test daemons only: rsyslog drops capabilities
+# at startup and aborts when the kernel refuses (capng_apply=-4), which a
+# build sandbox's partial capability set does. The shipped config keeps it.
 sender_conf() {
-    sed -e "s#workDirectory=\"/var/lib/rsyslog\"#workDirectory=\"$W/$1\"#" \
+    sed -e "s#global(workDirectory=\"/var/lib/rsyslog\"#global(libcapng.enable=\"off\" workDirectory=\"$W/$1\"#" \
         -e "s#queue.spoolDirectory=\"/var/lib/rsyslog\"#queue.spoolDirectory=\"$W/$1\"#" \
         -e 's#module(load="imuxsock" SysSock.Use="on")#module(load="imuxsock" SysSock.Use="off")#' \
         -e 's#port="514"#port="10514"#' "$CONF"
@@ -36,7 +40,7 @@ probe() {
     local n=$1 addr=$2 target=$3
     mkdir -p "$W/$n" "$W/$n-rx"
     cat > "$W/$n-rx/rx.conf" <<RX
-global(workDirectory="$W/$n-rx")
+global(workDirectory="$W/$n-rx" libcapng.enable="off")
 module(load="imtcp")
 input(type="imtcp" address="$addr" port="10514")
 template(name="m" type="string" string="%msg%\n")
