@@ -24,8 +24,16 @@ ostreecontainer --url=quay.io/crunchtools/rhel10-bootc-server:latest --transport
 
 # Key-only root, matching gloval.
 rootpw --lock
-sshkey --username=root "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOShcSBdLmP9zL3uAqBGGF3RSg8fuaGqnJ5lnZ+q8lzJ crunchtools (breetai/dolza -> servers)"
-sshkey --username=root "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPaBoMWkxQxQYVise4oQRd0SrXqnH25YMienQWikM3q9 smccarty-csb (breetai<->dolza CSB peer)"
 
 firstboot --disable
 reboot --eject
+
+%post --erroronfail
+install -d -m 0700 /root/.ssh
+cat > /root/.ssh/authorized_keys <<'KEYS'
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOShcSBdLmP9zL3uAqBGGF3RSg8fuaGqnJ5lnZ+q8lzJ crunchtools (breetai/dolza -> servers)
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPaBoMWkxQxQYVise4oQRd0SrXqnH25YMienQWikM3q9 smccarty-csb (breetai<->dolza CSB peer)
+KEYS
+chmod 0600 /root/.ssh/authorized_keys
+restorecon -R /root/.ssh || true
+%end
