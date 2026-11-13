@@ -45,6 +45,7 @@ EOF
 # journal rotation and takes the whole ingest path down with it. Here journald
 # forwards to the syslog socket instead and rsyslog only relays onward.
 COPY etc/rsyslog.conf /etc/rsyslog.conf
+COPY etc/systemd/system/rsyslog.service.d/20-collector.conf /etc/systemd/system/rsyslog.service.d/20-collector.conf
 COPY etc/systemd/journald.conf.d/10-forward-to-syslog.conf /etc/systemd/journald.conf.d/10-forward-to-syslog.conf
 COPY etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf /etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf
 COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/containers.conf.d/50-exec-cleanup.conf
@@ -198,6 +199,11 @@ RUN systemctl set-default multi-user.target && \
     cat /etc/bashrc.customizations >> /etc/bashrc && \
     ln -s /usr/bin/fusermount3 /usr/bin/fusermount && \
     rm -f /etc/motd.d/insights-client
+
+# Log forwarding reaches RSYSLOG_COLLECTOR, end to end (tests/forward-target.sh).
+# rsyslogd -N1 passed a version of this that forwarded nowhere.
+RUN --mount=type=bind,source=tests,target=/run/tests,z \
+    /run/tests/forward-target.sh
 
 # Clean up (RHSM unregister happens via the trap in the dnf layer above)
 RUN rm -rf /var/run \
