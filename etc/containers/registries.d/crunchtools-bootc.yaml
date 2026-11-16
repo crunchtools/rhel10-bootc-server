@@ -1,0 +1,7 @@
+# Read the cosign signatures the pipeline attaches to the bootc images (#44).
+# Scoped like the policy.json entries: the other crunchtools images are unsigned.
+docker:
+  quay.io/crunchtools/rhel10-bootc-server:
+    use-sigstore-attachments: true
+  quay.io/crunchtools/rhel10-bootc-workstation:
+    use-sigstore-attachments: true

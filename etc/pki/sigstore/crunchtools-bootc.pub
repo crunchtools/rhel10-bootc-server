@@ -1,0 +1,2 @@
+PLACEHOLDER: the cosign public key for the crunchtools bootc images goes here (#44).
+The build refuses this file until it is a PEM public key.
