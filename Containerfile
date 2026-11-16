@@ -68,10 +68,12 @@ import json, os
 key = "/etc/pki/sigstore/crunchtools-bootc.pub"
 with open(key) as f:
     assert f.read().startswith("-----BEGIN PUBLIC KEY-----"), key + " is not a PEM public key"
-src = next(p for p in ("/etc/containers/policy.json", "/usr/share/containers/policy.json")
-           if os.path.exists(p))
+src = next((p for p in ("/etc/containers/policy.json", "/usr/share/containers/policy.json")
+            if os.path.exists(p)), None)
+assert src, "the base ships no containers policy.json to merge into"
 with open(src) as f:
-    policy = json.load(f)
+    base = json.load(f)
+policy = json.loads(json.dumps(base))
 docker = policy.setdefault("transports", {}).setdefault("docker", {})
 # cosign signs the repository, not a tag, so only matchRepository accepts it.
 for repo in ("rhel10-bootc-server", "rhel10-bootc-workstation"):
@@ -80,9 +82,19 @@ for repo in ("rhel10-bootc-server", "rhel10-bootc-workstation"):
         "keyPath": key,
         "signedIdentity": {"type": "matchRepository"},
     }]
+# Only the two scopes change: the default and every entry the base shipped
+# (the Red Hat keys among them) come through untouched.
+added = {"quay.io/crunchtools/rhel10-bootc-server", "quay.io/crunchtools/rhel10-bootc-workstation"}
+assert policy["default"] == base["default"]
+for transport, scopes in base.get("transports", {}).items():
+    for scope, reqs in scopes.items():
+        assert policy["transports"][transport][scope] == reqs, (transport, scope)
+assert set(docker) - set(base.get("transports", {}).get("docker", {})) == added
 with open("/etc/containers/policy.json", "w") as f:
     json.dump(policy, f, indent=4)
     f.write("\n")
+with open("/etc/containers/policy.json") as f:
+    assert json.load(f) == policy
 EOF
 
 # Backup interlock (RT #1594). `bootc upgrade --apply` reboots this host on its
