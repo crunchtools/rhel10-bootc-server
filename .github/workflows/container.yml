@@ -43,15 +43,15 @@ jobs:
       RHSM_ACTIVATION_KEY: ${{ secrets.RHSM_ACTIVATION_KEY }}
       RHSM_ORG_ID: ${{ secrets.RHSM_ORG_ID }}
 
-  # Sign what was promoted (#44). Hosts refuse a quay.io/crunchtools/rhel10-bootc-*
+  # Sign every gated digest (#44). Hosts refuse a quay.io/crunchtools/rhel10-bootc-*
   # image this key did not sign, so a stolen Quay token can move a tag but cannot
-  # make a host boot what it points at. Only promoted digests are signed -- a
-  # merge to main, a v* release, the weekly rebuild -- never a pull request's
-  # candidate, so a pushed branch cannot produce an image a host would accept.
-  # A pull request still proves the key: the secret must be the private half of
-  # the public key the image ships, or a release would sign with a key no host
-  # trusts. cosign v2: v3 stores signatures as OCI referrers, which c/image (and
-  # so bootc) does not read; c/image does not check Rekor, so neither do we.
+  # make a host boot what it points at. A pull request's candidate is signed once
+  # it passes the gates (gated-<sha>); the merge promotes that same digest, so it
+  # is already signed before any tag moves. A promotion that rebuilt (schedule,
+  # an ungated release) is signed here as well. The secret must be the private
+  # half of the public key the image ships, or a release would sign with a key no
+  # host trusts. cosign v2: v3 stores signatures as OCI referrers, which c/image
+  # (and so bootc) does not read; c/image does not check Rekor, so neither do we.
   sign:
     name: sign
     needs: container
@@ -68,7 +68,7 @@ jobs:
           curl -fsSLo "$RUNNER_TEMP/cosign" https://github.com/sigstore/cosign/releases/download/v2.6.5/cosign-linux-amd64
           echo "c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644  $RUNNER_TEMP/cosign" | sha256sum -c
           sudo install -m 0755 "$RUNNER_TEMP/cosign" /usr/local/bin/cosign
-      - name: Sign the promoted digest
+      - name: Sign the gated digest
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
@@ -76,21 +76,27 @@ jobs:
           QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
           IMAGE: quay.io/crunchtools/rhel10-bootc-server
           DIGEST: ${{ needs.container.outputs.digest }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUB: etc/pki/sigstore/crunchtools-bootc.pub
         run: |
-          set -eu
+          set -euo pipefail
           if [ -z "$QUAY_USERNAME" ]; then
             echo "::notice::no secrets in this run (Dependabot or a fork); nothing was pushed, nothing to sign"
             exit 0
           fi
-          [ -n "$COSIGN_PRIVATE_KEY" ] || { echo "::error::COSIGN_PRIVATE_KEY is not set: a promoted image would ship unsigned and hosts would refuse it" >&2; exit 1; }
+          [ -n "$COSIGN_PRIVATE_KEY" ] || { echo "::error::COSIGN_PRIVATE_KEY is not set: a gated image would ship unsigned and hosts would refuse it" >&2; exit 1; }
           cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/secret.pub"
           cmp -s "$RUNNER_TEMP/secret.pub" "$PUB" || { echo "::error::COSIGN_PRIVATE_KEY is not the private half of $PUB" >&2; exit 1; }
-          if [ -z "$DIGEST" ]; then
-            echo "::notice::not promoted; the signing key matches $PUB, nothing signed"
-            exit 0
-          fi
           printf '%s' "$QUAY_PASSWORD" | cosign login quay.io -u "$QUAY_USERNAME" --password-stdin
-          cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY "$IMAGE@$DIGEST"
+          if [ -z "$DIGEST" ]; then
+            [ -n "$HEAD_SHA" ] || { echo "::notice::nothing was promoted, nothing to sign"; exit 0; }
+            # A pull request: promote does not run, so take the digest mark tagged.
+            DIGEST=$(skopeo inspect --creds "$QUAY_USERNAME:$QUAY_PASSWORD" --format '{{.Digest}}' "docker://$IMAGE:gated-$HEAD_SHA")
+          fi
+          if cosign verify --insecure-ignore-tlog --key "$PUB" "$IMAGE@$DIGEST" >/dev/null 2>&1; then
+            echo "::notice::$IMAGE@$DIGEST is already signed (gated on its pull request)"
+          else
+            cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY "$IMAGE@$DIGEST"
+          fi
           cosign verify --insecure-ignore-tlog --key "$PUB" "$IMAGE@$DIGEST"
           echo "::notice::signed $IMAGE@$DIGEST"

@@ -1,7 +1,0 @@
-[[findings]]
-agent = "constitution"
-category = "constitution"
-file = "etc/pki/sigstore/crunchtools-bootc.pub"
-evidence = "PLACEHOLDER: the cosign public key for the crunchtools bootc images goes here (#44)."
-status = "not-a-bug"
-reason = "Deliberate until Scott generates the key pair (#44): the build refuses a non-PEM key so the placeholder cannot ship. Remove this entry when the real key lands."
