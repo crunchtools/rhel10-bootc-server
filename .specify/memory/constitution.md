@@ -1,8 +1,8 @@
 # rhel10-bootc-server Constitution
 
-> **Version:** 1.2.0
+> **Version:** 1.3.0
 > **Ratified:** 2026-03-03
-> **Amended:** 2026-11-16
+> **Amended:** 2026-11-17
 > **Status:** Active
 > **Inherits:** [crunchtools/constitution](https://github.com/crunchtools/constitution) v1.44.0
 > **Profile:** Bootc Image
@@ -80,7 +80,14 @@ policy with that default. `container.yml` signs each promoted digest (never a
 pull request candidate) with cosign v2. The key (`COSIGN_PRIVATE_KEY`,
 `COSIGN_PASSWORD`) lives only in the `cosign-signing` environment, which
 deploys from `main` and `v*` tags, and the job refuses a `v*` tag whose commit
-is not on `main`. Pull requests check only that the shipped public key parses.
+is not on `main`. The signing key never reaches a pull request: pull requests
+check that the shipped public key parses and, through `disk.yml`, verify
+signatures with that public key only.
+
+`disk.yml` builds a raw disk only from a digest this key signed
+(`tests/digest-gate.sh`), for hosts such as a Linode that cannot install from
+the registry (RT#1638). The disk boots pinned to that digest and is switched to
+`:latest` after first boot.
 Key rotation and loss: [docs/signing-key.md](../../docs/signing-key.md).
 Widening the scope to all of quay.io/crunchtools waits on #47.
 
@@ -92,3 +99,4 @@ Widening the scope to all of quay.io/crunchtools waits on #47.
 | 1.0.1 | 2026-09-25 | Inherits constitution v1.17.0 (Gatehouse gates) |
 | 1.1.0 | 2026-10-02 | Manifest under constitution v1.18.0; profile changed from Container Image to Bootc Image (constitution#22) |
 | 1.2.0 | 2026-11-16 | Signed Updates: hosts accept only cosign-signed bootc images (#44) |
+| 1.3.0 | 2026-11-17 | Signed Updates: `disk.yml` builds raw disks only from signed digests; pull requests verify with the public key, never the signing key (RT#1638) |
