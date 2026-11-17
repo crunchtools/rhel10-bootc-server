@@ -1,8 +1,8 @@
 # rhel10-bootc-server Constitution
 
-> **Version:** 1.1.0
+> **Version:** 1.2.0
 > **Ratified:** 2026-03-03
-> **Amended:** 2026-10-02
+> **Amended:** 2026-11-16
 > **Status:** Active
 > **Inherits:** [crunchtools/constitution](https://github.com/crunchtools/constitution) v1.41.0
 > **Profile:** Bootc Image
@@ -66,6 +66,24 @@ The journal stays persistent so `podman logs` keeps working.
 session holds two conmon processes until the delay expires, and 1-minute
 monitoring checks otherwise left hundreds idle (RT #1513).
 
+## Signed Updates
+
+Hosts accept a `quay.io/crunchtools/rhel10-bootc-*` image only if it carries a
+cosign signature from the key in `etc/pki/sigstore/crunchtools-bootc.pub`
+(#44). The Containerfile merges two `sigstoreSigned` entries
+(`matchRepository`) into the base's `policy.json` and writes the result to
+`/etc/containers/policy.json`; `registries.d/crunchtools-bootc.yaml` turns on
+sigstore attachments for the same two repositories. The default stays
+`insecureAcceptAnything` and the Red Hat entries are untouched, so hosts keep
+the plain `bootc switch` origin: `--enforce-container-sigpolicy` refuses a
+policy with that default. `container.yml` signs each promoted digest (never a
+pull request candidate) with cosign v2. The key (`COSIGN_PRIVATE_KEY`,
+`COSIGN_PASSWORD`) lives only in the `cosign-signing` environment, which
+deploys from `main` and `v*` tags, and the job refuses a `v*` tag whose commit
+is not on `main`. Pull requests check only that the shipped public key parses.
+Key rotation and loss: [docs/signing-key.md](../../docs/signing-key.md).
+Widening the scope to all of quay.io/crunchtools waits on #47.
+
 ## History
 
 | Version | Date | Changes |
@@ -73,3 +91,4 @@ monitoring checks otherwise left hundreds idle (RT #1513).
 | 1.0.0 | 2026-03-03 | Initial server bootc image constitution |
 | 1.0.1 | 2026-09-25 | Inherits constitution v1.17.0 (Gatehouse gates) |
 | 1.1.0 | 2026-10-02 | Manifest under constitution v1.18.0; profile changed from Container Image to Bootc Image (constitution#22) |
+| 1.2.0 | 2026-11-16 | Signed Updates: hosts accept only cosign-signed bootc images (#44) |

@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+- **Hosts accept only signed bootc images** (#44). The pipeline signs every
+  promoted digest (merge to main, v* release, weekly rebuild; never a pull
+  request candidate) with cosign, and the image ships a `sigstoreSigned`
+  policy for `quay.io/crunchtools/rhel10-bootc-server` and `-workstation`, the
+  matching registries.d entry and the public key. A stolen Quay token can
+  still move a tag, but no host will upgrade to what it points at. The default
+  policy and the Red Hat entries are unchanged; the rest of
+  quay.io/crunchtools stays unsigned until #47. The signing key lives only in
+  the `cosign-signing` environment (main and v* tags), and a v* tag off main
+  is never signed. Rotation and loss runbook: `docs/signing-key.md`.
+
 ## [1.3.0] - 2026-11-13
 
 ### Changed

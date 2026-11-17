@@ -50,6 +50,53 @@ COPY etc/systemd/journald.conf.d/10-forward-to-syslog.conf /etc/systemd/journald
 COPY etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf /etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf
 COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/containers.conf.d/50-exec-cleanup.conf
 
+# Signed updates (#44). A stolen Quay token could move :latest to any image,
+# and every host would boot it at the next weekly upgrade. The pipeline signs
+# each promoted digest with cosign; these entries make c/image refuse a
+# quay.io/crunchtools/rhel10-bootc-* image that key did not sign. bootc honours
+# them through its default ostree-unverified-registry origin -- do NOT switch
+# hosts with --enforce-container-sigpolicy, which refuses any policy whose
+# default is insecureAcceptAnything, and that default stays: every other
+# crunchtools image is unsigned and updates nightly through podman auto-update
+# (#47). The Red Hat entries are kept as the base ships them. The base may
+# ship its policy in /etc or only in /usr/share (containers-common 6); the
+# merged file goes to /etc, which outranks both.
+COPY etc/pki/sigstore/crunchtools-bootc.pub /etc/pki/sigstore/crunchtools-bootc.pub
+COPY etc/containers/registries.d/crunchtools-bootc.yaml /etc/containers/registries.d/crunchtools-bootc.yaml
+RUN python3 -I - <<'EOF'
+import json, os
+key = "/etc/pki/sigstore/crunchtools-bootc.pub"
+with open(key) as f:
+    assert f.read().startswith("-----BEGIN PUBLIC KEY-----"), key + " is not a PEM public key"
+src = next((p for p in ("/etc/containers/policy.json", "/usr/share/containers/policy.json")
+            if os.path.exists(p)), None)
+assert src, "the base ships no containers policy.json to merge into"
+with open(src) as f:
+    base = json.load(f)
+policy = json.loads(json.dumps(base))
+docker = policy.setdefault("transports", {}).setdefault("docker", {})
+# cosign signs the repository, not a tag, so only matchRepository accepts it.
+for repo in ("rhel10-bootc-server", "rhel10-bootc-workstation"):
+    docker["quay.io/crunchtools/" + repo] = [{
+        "type": "sigstoreSigned",
+        "keyPath": key,
+        "signedIdentity": {"type": "matchRepository"},
+    }]
+# Only the two scopes change: the default and every entry the base shipped
+# (the Red Hat keys among them) come through untouched.
+added = {"quay.io/crunchtools/rhel10-bootc-server", "quay.io/crunchtools/rhel10-bootc-workstation"}
+assert policy["default"] == base["default"]
+for transport, scopes in base.get("transports", {}).items():
+    for scope, reqs in scopes.items():
+        assert policy["transports"][transport][scope] == reqs, (transport, scope)
+assert set(docker) - set(base.get("transports", {}).get("docker", {})) == added
+with open("/etc/containers/policy.json", "w") as f:
+    json.dump(policy, f, indent=4)
+    f.write("\n")
+with open("/etc/containers/policy.json") as f:
+    assert json.load(f) == policy
+EOF
+
 # Backup interlock (RT #1594). `bootc upgrade --apply` reboots this host on its
 # own, and it killed a ten-hour pCloud rotation at 93%. The pbs rotations hold
 # a block shutdown inhibitor, which logind honours; these two files turn the
