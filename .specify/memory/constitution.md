@@ -76,12 +76,12 @@ cosign signature from the key in `etc/pki/sigstore/crunchtools-bootc.pub`
 sigstore attachments for the same two repositories. The default stays
 `insecureAcceptAnything` and the Red Hat entries are untouched, so hosts keep
 the plain `bootc switch` origin: `--enforce-container-sigpolicy` refuses a
-policy with that default. `container.yml` signs each gated digest (a pull
-request once it passes the gates, or a rebuild once promoted) with cosign
-v2 (`COSIGN_PRIVATE_KEY`, `COSIGN_PASSWORD`) and checks, on every run that has
-secrets, that the secret matches the shipped public key. Runs without secrets
-(Dependabot, forks) push nothing, so there is nothing to sign. Widening the
-scope to all of quay.io/crunchtools waits on #47.
+policy with that default. `container.yml` signs each promoted digest (never a
+pull request candidate) with cosign v2 (`COSIGN_PRIVATE_KEY`,
+`COSIGN_PASSWORD`) and checks, on every run that has secrets, that the secret
+matches the shipped public key. Runs without secrets (Dependabot, forks) push
+nothing, so there is nothing to sign. Widening the scope to all of
+quay.io/crunchtools waits on #47.
 
 ## History
 

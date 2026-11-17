@@ -52,7 +52,7 @@ COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/conta
 
 # Signed updates (#44). A stolen Quay token could move :latest to any image,
 # and every host would boot it at the next weekly upgrade. The pipeline signs
-# each gated digest with cosign; these entries make c/image refuse a
+# each promoted digest with cosign; these entries make c/image refuse a
 # quay.io/crunchtools/rhel10-bootc-* image that key did not sign. bootc honours
 # them through its default ostree-unverified-registry origin -- do NOT switch
 # hosts with --enforce-container-sigpolicy, which refuses any policy whose
