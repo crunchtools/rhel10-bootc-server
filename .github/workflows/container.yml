@@ -43,20 +43,11 @@ jobs:
       RHSM_ACTIVATION_KEY: ${{ secrets.RHSM_ACTIVATION_KEY }}
       RHSM_ORG_ID: ${{ secrets.RHSM_ORG_ID }}
 
-  # Sign what was promoted (#44). Hosts refuse a quay.io/crunchtools/rhel10-bootc-*
-  # image this key did not sign, so a stolen Quay token can move a tag but cannot
-  # make a host boot what it points at. Only promoted digests are signed -- a
-  # merge to main, a v* release, the weekly rebuild -- never a pull request's
-  # candidate: a signed branch that never merged would be an image hosts accept.
-  # The cost is a minute after promote when the tag is unsigned and hosts refuse
-  # it, which fails closed; #47 moves signing into promote to remove it. A pull
-  # request still proves the key: the secret must be the private half of the
-  # public key the image ships, or a release would sign with a key no host
-  # trusts. cosign v2: v3 stores signatures as OCI referrers, which c/image (and
-  # so bootc) does not read; c/image does not check Rekor, so neither do we.
-  sign:
-    name: sign
-    needs: container
+  # The shipped public key must parse (#44). This needs no secret, so it runs on
+  # every pull request, Dependabot's included; the signing key itself never
+  # reaches a pull request run.
+  signing-key:
+    name: signing key
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -64,6 +55,46 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: The shipped public key is an ECDSA P-256 key
+        env:
+          PUB: etc/pki/sigstore/crunchtools-bootc.pub
+        run: |
+          set -euo pipefail
+          openssl pkey -pubin -in "$PUB" -noout -text | grep -q 'NIST CURVE: P-256' \
+            || { echo "::error::$PUB is not an ECDSA P-256 public key" >&2; exit 1; }
+
+  # Sign what was promoted (#44). Hosts refuse a
+  # quay.io/crunchtools/rhel10-bootc-* image this key did not sign, so a stolen
+  # Quay token can move a tag but cannot make a host boot what it points at.
+  # Only a promoted digest is signed -- a merge to main, a v* release, the
+  # weekly rebuild -- never a pull request's candidate. The key lives in the
+  # cosign-signing environment, which only main and v* tags can deploy to, so no
+  # branch run can read it; and a v* tag must point at a commit on main, or
+  # nothing is signed. The cost is a minute after promote when the tag is
+  # unsigned and hosts refuse it, which fails closed; #47 moves signing into
+  # promote to remove it. cosign v2: v3 stores signatures as OCI referrers,
+  # which c/image (and so bootc) does not read; c/image does not check Rekor, so
+  # neither do we. Key loss and rotation: docs/signing-key.md.
+  sign:
+    name: sign
+    needs: container
+    if: needs.container.outputs.digest != ''
+    environment: cosign-signing
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: A release tag points at a commit on main
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          git fetch -q origin +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$GITHUB_REF ($GITHUB_SHA) is not on main; refusing to sign" >&2; exit 1; }
       - name: Install cosign v2.6.5
         run: |
           set -eu
@@ -81,17 +112,9 @@ jobs:
           PUB: etc/pki/sigstore/crunchtools-bootc.pub
         run: |
           set -euo pipefail
-          if [ -z "$QUAY_USERNAME" ]; then
-            echo "::notice::no secrets in this run (Dependabot or a fork); nothing was pushed, nothing to sign"
-            exit 0
-          fi
-          [ -n "$COSIGN_PRIVATE_KEY" ] || { echo "::error::COSIGN_PRIVATE_KEY is not set: a promoted image would ship unsigned and hosts would refuse it" >&2; exit 1; }
+          [ -n "$COSIGN_PRIVATE_KEY" ] || { echo "::error::COSIGN_PRIVATE_KEY is not in the cosign-signing environment: $IMAGE@$DIGEST stays unsigned and hosts will refuse it" >&2; exit 1; }
           cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/secret.pub"
           cmp -s "$RUNNER_TEMP/secret.pub" "$PUB" || { echo "::error::COSIGN_PRIVATE_KEY is not the private half of $PUB" >&2; exit 1; }
-          if [ -z "$DIGEST" ]; then
-            echo "::notice::not promoted; the signing key matches $PUB, nothing signed"
-            exit 0
-          fi
           printf '%s' "$QUAY_PASSWORD" | cosign login quay.io -u "$QUAY_USERNAME" --password-stdin
           if cosign verify --insecure-ignore-tlog --key "$PUB" "$IMAGE@$DIGEST" >/dev/null 2>&1; then
             echo "::notice::$IMAGE@$DIGEST is already signed (a release of a digest main promoted)"

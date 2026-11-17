@@ -77,11 +77,12 @@ sigstore attachments for the same two repositories. The default stays
 `insecureAcceptAnything` and the Red Hat entries are untouched, so hosts keep
 the plain `bootc switch` origin: `--enforce-container-sigpolicy` refuses a
 policy with that default. `container.yml` signs each promoted digest (never a
-pull request candidate) with cosign v2 (`COSIGN_PRIVATE_KEY`,
-`COSIGN_PASSWORD`) and checks, on every run that has secrets, that the secret
-matches the shipped public key. Runs without secrets (Dependabot, forks) push
-nothing, so there is nothing to sign. Widening the scope to all of
-quay.io/crunchtools waits on #47.
+pull request candidate) with cosign v2. The key (`COSIGN_PRIVATE_KEY`,
+`COSIGN_PASSWORD`) lives only in the `cosign-signing` environment, which
+deploys from `main` and `v*` tags, and the job refuses a `v*` tag whose commit
+is not on `main`. Pull requests check only that the shipped public key parses.
+Key rotation and loss: [docs/signing-key.md](../../docs/signing-key.md).
+Widening the scope to all of quay.io/crunchtools waits on #47.
 
 ## History
 
