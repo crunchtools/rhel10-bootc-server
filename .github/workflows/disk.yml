@@ -7,8 +7,8 @@
 #
 # The source digest must carry the bootc signature, or nothing is built: a disk
 # is a host, and it should start from what a host would accept as an update.
-# The disk boots pinned to that digest; `bootc switch` the host to :latest
-# after first boot, a pull the shipped policy verifies. No cloud token comes near this workflow; whoever
+# The disk boots pinned to that digest. After first boot, run `bootc switch`
+# to :latest; the host's shipped policy verifies that pull. No cloud token comes near this workflow; whoever
 # dispatches it downloads the artifact and uploads it to the provider.
 name: Disk image
 
