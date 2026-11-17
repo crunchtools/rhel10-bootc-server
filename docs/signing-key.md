@@ -7,6 +7,13 @@ rhel10-bootc-workstation. The private half and its password are the
 environment in both repositories. That environment deploys only from `main`
 and `v*` tags, and no copy of the key belongs anywhere else.
 
+Signing runs inside the constitution's `container-release.yml` (`sign: true`,
+#47), which refuses a key that is not the private half of the constitution's
+`keys/crunchtools-bootc.pub`. Rotating the key therefore also needs a
+constitution release that ships the new public key, and both repositories must
+pin that release before their secrets change. Until then every promotion fails
+and no tag moves.
+
 A host checks every update against the key it already has. A new key reaches
 a host only in an image that host accepts, so the order below matters.
 
@@ -19,8 +26,9 @@ a host only in an image that host accepts, so the order below matters.
    so hosts accept it, and from then on they trust both keys.
 3. Wait until every host has upgraded. On each one,
    `jq '.transports.docker' /etc/containers/policy.json` must show both keys.
-4. Replace the two secrets in the `cosign-signing` environment of both
-   repositories with the new pair.
+4. Release the constitution with the new key in `keys/crunchtools-bootc.pub`.
+   Then, in both repositories, replace the two secrets in the `cosign-signing`
+   environment with the new pair and merge the pin bump to that release.
 5. Pull request in both repositories: make the new key the only key (back to
    `keyPath`), and remove the old file. Merge and release. The new key signs
    this image, and hosts still trust it.
@@ -32,9 +40,11 @@ Hosts keep running the image they have and refuse every update. Nothing is
 exposed, but no update reaches a host until each one is given the new key by
 hand.
 
-1. Generate a new pair, put it in the `cosign-signing` environment of both
-   repositories, and merge a pull request that ships the new public key. Its
-   promotion is signed with the new key.
+1. Generate a new pair and release the constitution with the new public key
+   in `keys/crunchtools-bootc.pub`. Put the pair in the `cosign-signing`
+   environment of both repositories, then merge a pull request there that
+   ships the new public key and pins that release. Its promotion is signed
+   with the new key.
 2. On each host, as root:
    `cp <new>.pub /etc/pki/sigstore/crunchtools-bootc.pub && bootc upgrade`.
 3. After the reboot, the image ships the same file. `ostree admin config-diff`
