@@ -32,7 +32,9 @@ concurrency:
 jobs:
   disk:
     name: raw disk
-    runs-on: ubuntu-latest
+    # GitHub-hosted only: osbuild needs real root, and a runner that maps only
+    # uid 0 into a user namespace fails every chown in the build root.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
@@ -81,6 +83,7 @@ jobs:
           # container (EPERM on fchownat, mount of containers/storage denied).
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # What the builder really gets: rootful podman, no user namespace.
+          echo "runner=$RUNNER_NAME environment=$RUNNER_ENVIRONMENT"
           id
           sudo podman info --format 'rootless={{.Host.Security.Rootless}} podman={{.Version.Version}} apparmor={{.Host.Security.AppArmorEnabled}}'
           sudo podman run --rm --privileged --security-opt apparmor=unconfined \
