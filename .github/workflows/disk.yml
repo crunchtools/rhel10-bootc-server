@@ -20,7 +20,8 @@ on:
         required: true
         type: string
   pull_request:
-    paths: ['.github/workflows/disk.yml', 'install/root-authorized-keys']
+    paths: ['.github/workflows/disk.yml', 'install/root-authorized-keys',
+            'install/verify-digest.sh', 'tests/verify-digest.sh']
 
 permissions: {}
 
@@ -42,7 +43,7 @@ jobs:
       # way container.yml pins it.
       BIB: quay.io/centos-bootc/bootc-image-builder@sha256:dab86ee6b46dcade411b37f4e70b07d93b6a06da0dbfec6fe89247a220e0d9f8
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - name: Install cosign v2.6.5
@@ -51,16 +52,14 @@ jobs:
           curl -fsSLo "$RUNNER_TEMP/cosign" https://github.com/sigstore/cosign/releases/download/v2.6.5/cosign-linux-amd64
           echo "c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644  $RUNNER_TEMP/cosign" | sha256sum -c
           sudo install -m 0755 "$RUNNER_TEMP/cosign" /usr/local/bin/cosign
-      - name: Resolve the source digest
+      - name: The source digest is signed by the bootc key
         run: |
           set -euo pipefail
           if [ -z "$DIGEST" ]; then
             DIGEST=$(skopeo inspect --no-tags --format '{{.Digest}}' "docker://$REPO:latest")
           fi
-          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::not a sha256 digest: $DIGEST" >&2; exit 1; }
-          echo "IMAGE=$REPO@$DIGEST" >> "$GITHUB_ENV"
-      - name: The source digest is signed by the bootc key
-        run: cosign verify --insecure-ignore-tlog --key etc/pki/sigstore/crunchtools-bootc.pub "$IMAGE"
+          IMAGE=$(install/verify-digest.sh "$REPO" "$DIGEST" etc/pki/sigstore/crunchtools-bootc.pub)
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
       - name: Free runner disk
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
@@ -81,6 +80,11 @@ jobs:
           # AppArmor, which breaks osbuild's sandbox even in a privileged root
           # container (EPERM on fchownat, mount of containers/storage denied).
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          # What the builder really gets: rootful podman, no user namespace.
+          id
+          sudo podman info --format 'rootless={{.Host.Security.Rootless}} podman={{.Version.Version}} apparmor={{.Host.Security.AppArmorEnabled}}'
+          sudo podman run --rm --privileged --security-opt apparmor=unconfined \
+            --entrypoint sh "$BIB" -c 'id; cat /proc/self/uid_map; grep CapEff /proc/self/status; cat /proc/self/attr/current 2>/dev/null; echo'
           sudo podman run --rm --privileged --pull=missing \
             --security-opt label=type:unconfined_t --security-opt apparmor=unconfined \
             -v ./config.toml:/config.toml:ro -v ./output:/output \
@@ -90,9 +94,29 @@ jobs:
           cd output/image
           echo "$IMAGE" | sudo tee SOURCE
           sudo sha256sum disk.raw.gz | sudo tee SHA256SUM
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: rhel10-bootc-server-raw
           path: output/image/
           retention-days: 7
           compression-level: 0
+
+  digest-gate:
+    name: digest gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install cosign v2.6.5
+        run: |
+          set -eu
+          curl -fsSLo "$RUNNER_TEMP/cosign" https://github.com/sigstore/cosign/releases/download/v2.6.5/cosign-linux-amd64
+          echo "c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644  $RUNNER_TEMP/cosign" | sha256sum -c
+          sudo install -m 0755 "$RUNNER_TEMP/cosign" /usr/local/bin/cosign
+      - name: Unsigned and malformed digests are refused, a signed one passes
+        run: tests/verify-digest.sh
