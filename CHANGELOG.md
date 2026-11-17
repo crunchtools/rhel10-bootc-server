@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-17
+
 ### Security
 - **Hosts accept only signed bootc images** (#44). The pipeline signs every
   promoted digest (merge to main, v* release, weekly rebuild; never a pull
