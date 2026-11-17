@@ -68,7 +68,12 @@ jobs:
       - name: Build the raw disk
         run: |
           set -euo pipefail
-          sudo podman pull "$IMAGE"
+          # Quay drops a blob mid-read now and then on an image this size.
+          for try in 1 2 3; do
+            sudo podman pull "$IMAGE" && break
+            [ "$try" = 3 ] && exit 1
+            sleep 20
+          done
           mkdir -p output
           key=$(grep -m1 '^ssh-' install/root-authorized-keys)
           printf '[[customizations.user]]\nname = "root"\nkey = "%s"\n' "$key" > config.toml
