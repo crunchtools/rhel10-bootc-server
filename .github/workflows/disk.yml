@@ -77,8 +77,12 @@ jobs:
           mkdir -p output
           key=$(grep -m1 '^ssh-' install/root-authorized-keys)
           printf '[[customizations.user]]\nname = "root"\nkey = "%s"\n' "$key" > config.toml
+          # Ubuntu 24.04 runners confine unprivileged user namespaces with
+          # AppArmor, which breaks osbuild's sandbox even in a privileged root
+          # container (EPERM on fchownat, mount of containers/storage denied).
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           sudo podman run --rm --privileged --pull=missing \
-            --security-opt label=type:unconfined_t \
+            --security-opt label=type:unconfined_t --security-opt apparmor=unconfined \
             -v ./config.toml:/config.toml:ro -v ./output:/output \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
             "$BIB" build --type raw --rootfs xfs "$IMAGE"
