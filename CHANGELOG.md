@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Signing moves into the constitution's `container-release.yml` (v1.44.0,
+  `sign: true`, #47): promote signs the digest before any tag moves, so a tag
+  never points at an unsigned image, even briefly. The local `sign` job is
+  gone. Rotating the signing key now also needs a constitution release
+  (`docs/signing-key.md`).
+
 ## [1.3.1] - 2026-11-17
 
 ### Security

@@ -22,7 +22,7 @@ permissions: {}
 
 jobs:
   container:
-    uses: crunchtools/constitution/.github/workflows/container-release.yml@v1.41.0
+    uses: crunchtools/constitution/.github/workflows/container-release.yml@v1.44.0
     permissions:
       contents: read
       pull-requests: read
@@ -35,6 +35,13 @@ jobs:
       boot: command
       boot-command: podman run --rm "$IMAGE" bootc container lint
       boot-timeout: 600
+      # Promote signs the digest before any tag moves (#47), so a tag never
+      # points at an image hosts would refuse, and a pull request's candidate is
+      # never signed. The key is the cosign-signing environment's (main and v*
+      # only); it verifies against the constitution's keys/crunchtools-bootc.pub,
+      # which must match etc/pki/sigstore/crunchtools-bootc.pub here. Key loss
+      # and rotation: docs/signing-key.md.
+      sign: true
     secrets:
       QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
@@ -42,6 +49,8 @@ jobs:
       REGISTRY_REDHAT_IO_PASSWORD: ${{ secrets.REGISTRY_REDHAT_IO_PASSWORD }}
       RHSM_ACTIVATION_KEY: ${{ secrets.RHSM_ACTIVATION_KEY }}
       RHSM_ORG_ID: ${{ secrets.RHSM_ORG_ID }}
+      COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+      COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
 
   # The shipped public key must parse (#44). This needs no secret, so it runs on
   # every pull request, Dependabot's included; the signing key itself never
@@ -62,64 +71,3 @@ jobs:
           set -euo pipefail
           openssl pkey -pubin -in "$PUB" -noout -text | grep -q 'NIST CURVE: P-256' \
             || { echo "::error::$PUB is not an ECDSA P-256 public key" >&2; exit 1; }
-
-  # Sign what was promoted (#44). Hosts refuse a
-  # quay.io/crunchtools/rhel10-bootc-* image this key did not sign, so a stolen
-  # Quay token can move a tag but cannot make a host boot what it points at.
-  # Only a promoted digest is signed -- a merge to main, a v* release, the
-  # weekly rebuild -- never a pull request's candidate. The key lives in the
-  # cosign-signing environment, which only main and v* tags can deploy to, so no
-  # branch run can read it; and a v* tag must point at a commit on main, or
-  # nothing is signed. The cost is a minute after promote when the tag is
-  # unsigned and hosts refuse it, which fails closed; #47 moves signing into
-  # promote to remove it. cosign v2: v3 stores signatures as OCI referrers,
-  # which c/image (and so bootc) does not read; c/image does not check Rekor, so
-  # neither do we. Key loss and rotation: docs/signing-key.md.
-  sign:
-    name: sign
-    needs: container
-    if: needs.container.outputs.digest != ''
-    environment: cosign-signing
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: A release tag points at a commit on main
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          set -euo pipefail
-          git fetch -q origin +refs/heads/main:refs/remotes/origin/main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
-            || { echo "::error::$GITHUB_REF ($GITHUB_SHA) is not on main; refusing to sign" >&2; exit 1; }
-      - name: Install cosign v2.6.5
-        run: |
-          set -eu
-          curl -fsSLo "$RUNNER_TEMP/cosign" https://github.com/sigstore/cosign/releases/download/v2.6.5/cosign-linux-amd64
-          echo "c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644  $RUNNER_TEMP/cosign" | sha256sum -c
-          sudo install -m 0755 "$RUNNER_TEMP/cosign" /usr/local/bin/cosign
-      - name: Sign the promoted digest
-        env:
-          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
-          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
-          QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
-          IMAGE: quay.io/crunchtools/rhel10-bootc-server
-          DIGEST: ${{ needs.container.outputs.digest }}
-          PUB: etc/pki/sigstore/crunchtools-bootc.pub
-        run: |
-          set -euo pipefail
-          [ -n "$COSIGN_PRIVATE_KEY" ] || { echo "::error::COSIGN_PRIVATE_KEY is not in the cosign-signing environment: $IMAGE@$DIGEST stays unsigned and hosts will refuse it" >&2; exit 1; }
-          cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/secret.pub"
-          cmp -s "$RUNNER_TEMP/secret.pub" "$PUB" || { echo "::error::COSIGN_PRIVATE_KEY is not the private half of $PUB" >&2; exit 1; }
-          printf '%s' "$QUAY_PASSWORD" | cosign login quay.io -u "$QUAY_USERNAME" --password-stdin
-          if cosign verify --insecure-ignore-tlog --key "$PUB" "$IMAGE@$DIGEST" >/dev/null 2>&1; then
-            echo "::notice::$IMAGE@$DIGEST is already signed (a release of a digest main promoted)"
-          else
-            cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY "$IMAGE@$DIGEST"
-          fi
-          cosign verify --insecure-ignore-tlog --key "$PUB" "$IMAGE@$DIGEST"
-          echo "::notice::signed $IMAGE@$DIGEST"
