@@ -14,6 +14,8 @@ All notable changes to this project are documented here. The format follows
   pinned to the digest; `bootc switch` it to `:latest` after first boot. It is how a
   Linode host gets the image: `bootc install to-existing-root` cannot work on
   Linode's unpartitioned disks.
+  The disk boots pinned to the digest; `bootc switch` it to `:latest` after
+  first boot, a pull the shipped policy verifies.
 
 ## [1.4.0] - 2026-11-17
 
