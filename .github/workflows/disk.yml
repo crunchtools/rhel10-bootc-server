@@ -74,6 +74,11 @@ jobs:
             [ "$try" = 3 ] && exit 1
             sleep 20
           done
+          # The disk must track :latest, so its first upgrade is checked against
+          # the shipped policy, but this builder has no --target-imgref. It
+          # builds from local storage, so :latest is tagged locally onto the
+          # verified bytes and the registry tag is never consulted.
+          sudo podman tag "$IMAGE" "$REPO:latest"
           mkdir -p output
           key=$(grep -m1 '^ssh-' install/root-authorized-keys)
           printf '[[customizations.user]]\nname = "root"\nkey = "%s"\n' "$key" > config.toml
@@ -81,7 +86,7 @@ jobs:
             --security-opt label=type:unconfined_t \
             -v ./config.toml:/config.toml:ro -v ./output:/output \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
-            "$BIB" --type raw --rootfs xfs --target-imgref "$REPO:latest" "$IMAGE"
+            "$BIB" build --type raw --rootfs xfs "$REPO:latest"
           sudo gzip -1 output/image/disk.raw
           cd output/image
           echo "$IMAGE" | sudo tee SOURCE
