@@ -7,8 +7,8 @@
 #
 # The source digest must carry the bootc signature, or nothing is built: a disk
 # is a host, and it should start from what a host would accept as an update.
-# The disk tracks :latest, so its first `bootc upgrade` is checked against the
-# policy the image ships. No cloud token comes near this workflow; whoever
+# The disk boots pinned to that digest; `bootc switch` the host to :latest
+# after first boot, a pull the shipped policy verifies. No cloud token comes near this workflow; whoever
 # dispatches it downloads the artifact and uploads it to the provider.
 name: Disk image
 
@@ -74,11 +74,6 @@ jobs:
             [ "$try" = 3 ] && exit 1
             sleep 20
           done
-          # The disk must track :latest, so its first upgrade is checked against
-          # the shipped policy, but this builder has no --target-imgref. It
-          # builds from local storage, so :latest is tagged locally onto the
-          # verified bytes and the registry tag is never consulted.
-          sudo podman tag "$IMAGE" "$REPO:latest"
           mkdir -p output
           key=$(grep -m1 '^ssh-' install/root-authorized-keys)
           printf '[[customizations.user]]\nname = "root"\nkey = "%s"\n' "$key" > config.toml
@@ -86,7 +81,7 @@ jobs:
             --security-opt label=type:unconfined_t \
             -v ./config.toml:/config.toml:ro -v ./output:/output \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
-            "$BIB" build --type raw --rootfs xfs "$REPO:latest"
+            "$BIB" build --type raw --rootfs xfs "$IMAGE"
           sudo gzip -1 output/image/disk.raw
           cd output/image
           echo "$IMAGE" | sudo tee SOURCE

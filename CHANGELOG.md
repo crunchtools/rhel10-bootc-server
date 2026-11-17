@@ -10,7 +10,8 @@ All notable changes to this project are documented here. The format follows
 - **Raw disk images from a signed digest** (RT#1638). `disk.yml` is dispatched
   with a digest, refuses one the bootc key did not sign, and builds a
   bootc-image-builder raw disk with root keyed from
-  `install/root-authorized-keys`, uploaded as a workflow artifact. It is how a
+  `install/root-authorized-keys`, uploaded as a workflow artifact. The disk boots
+  pinned to the digest; `bootc switch` it to `:latest` after first boot. It is how a
   Linode host gets the image: `bootc install to-existing-root` cannot work on
   Linode's unpartitioned disks.
 
