@@ -21,7 +21,7 @@ on:
         type: string
   pull_request:
     paths: ['.github/workflows/disk.yml', 'install/root-authorized-keys',
-            'install/verify-digest.sh', 'tests/verify-digest.sh']
+            'tests/digest-gate.sh']
 
 permissions: {}
 
@@ -58,7 +58,7 @@ jobs:
           if [ -z "$DIGEST" ]; then
             DIGEST=$(skopeo inspect --no-tags --format '{{.Digest}}' "docker://$REPO:latest")
           fi
-          IMAGE=$(install/verify-digest.sh "$REPO" "$DIGEST" etc/pki/sigstore/crunchtools-bootc.pub)
+          IMAGE=$(tests/digest-gate.sh "$REPO" "$DIGEST" etc/pki/sigstore/crunchtools-bootc.pub)
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
       - name: Free runner disk
         run: |
@@ -119,4 +119,4 @@ jobs:
           echo "c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644  $RUNNER_TEMP/cosign" | sha256sum -c
           sudo install -m 0755 "$RUNNER_TEMP/cosign" /usr/local/bin/cosign
       - name: Unsigned and malformed digests are refused, a signed one passes
-        run: tests/verify-digest.sh
+        run: tests/digest-gate.sh

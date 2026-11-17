@@ -15,8 +15,8 @@ All notable changes to this project are documented here. The format follows
   Linode's unpartitioned disks.
   The disk boots pinned to the digest; `bootc switch` it to `:latest` after
   first boot, a pull the shipped policy verifies.
-  The signature gate is `install/verify-digest.sh`; `tests/verify-digest.sh`
-  proves it refuses malformed and unsigned digests on every pull request.
+  The signature gate is `tests/digest-gate.sh`, whose self-test
+  refuses malformed and unsigned digests on every pull request.
 
 ## [1.4.0] - 2026-11-17
 
