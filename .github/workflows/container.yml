@@ -88,10 +88,11 @@ jobs:
           cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/secret.pub"
           cmp -s "$RUNNER_TEMP/secret.pub" "$PUB" || { echo "::error::COSIGN_PRIVATE_KEY is not the private half of $PUB" >&2; exit 1; }
           printf '%s' "$QUAY_PASSWORD" | cosign login quay.io -u "$QUAY_USERNAME" --password-stdin
+          printf '%s' "$QUAY_PASSWORD" | skopeo login quay.io -u "$QUAY_USERNAME" --password-stdin >/dev/null
           if [ -z "$DIGEST" ]; then
             [ -n "$HEAD_SHA" ] || { echo "::notice::nothing was promoted, nothing to sign"; exit 0; }
             # A pull request: promote does not run, so take the digest mark tagged.
-            DIGEST=$(skopeo inspect --creds "$QUAY_USERNAME:$QUAY_PASSWORD" --format '{{.Digest}}' "docker://$IMAGE:gated-$HEAD_SHA")
+            DIGEST=$(skopeo inspect --format '{{.Digest}}' "docker://$IMAGE:gated-$HEAD_SHA")
           fi
           if cosign verify --insecure-ignore-tlog --key "$PUB" "$IMAGE@$DIGEST" >/dev/null 2>&1; then
             echo "::notice::$IMAGE@$DIGEST is already signed (gated on its pull request)"
