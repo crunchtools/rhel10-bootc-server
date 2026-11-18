@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **mt76 kmod overlay with upstream 20b126920a25** (RT#1656). mt7925e hit
+  kernel BUG list_debug.c:32 in `mt7925_mac_add_txs` when a station was
+  re-added under traffic, and the card wedged until a power-off. A builder
+  stage rebuilds the mt76 tree from the image kernel's source RPM with the
+  upstream fix (pinned by sha256) and installs it to `updates/`. The build
+  fails if the kernel already has the fix, if the patch stops applying, or if
+  the kernel moved between stages. `tests/kmod-mt76.sh` and the boot gate
+  check that `modinfo mt7925e` resolves to the overlay.
 - **Raw disk images from a signed digest** (RT#1638). `disk.yml` is dispatched
   with a digest, refuses one the bootc key did not sign, and builds a
   bootc-image-builder raw disk with root keyed from
