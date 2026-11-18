@@ -19,6 +19,9 @@ All notable changes to this project are documented here. The format follows
 - `install/wifi.ks.example` no longer leaves two profiles for one SSID: `%post`
   writes its own only when Anaconda did not copy the installer's, and names it
   after the SSID.
+- `install/wifi.ks.example` takes the SSID and PSK as data through quoted
+  heredocs: a quote or a `$` in either no longer breaks, or runs as shell in,
+  `%pre` and `%post`.
 
 ## [1.4.0] - 2026-11-17
 

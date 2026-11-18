@@ -21,7 +21,9 @@ cat > "$W/bin/nmcli" <<EOF
 case "\$*" in
     *"-g GENERAL.DEVICES connection show testcon") [ -e "$W/inactive" ] || echo wlan0 ;;
     *"-g IP4.GATEWAY connection show testcon")     [ -e "$W/inactive" ] || echo 192.0.2.1 ;;
-    *"connection up testcon")                      echo up >> "$W/ups"; echo "Connection successfully activated" ;;
+    *"connection up testcon")                      echo up >> "$W/ups"
+                                                   [ -e "$W/up-fails" ] && { echo "Error: activation failed" >&2; exit 4; }
+                                                   echo "Connection successfully activated" ;;
     *) echo "unexpected nmcli \$*" >&2; exit 2 ;;
 esac
 EOF
@@ -61,7 +63,25 @@ echo "PASS: recovery logged"
 rm -f "$W/gw-up" "$W/state/last_action"; touch "$W/inactive"; run; run; run
 check "an inactive connection counts as a miss" "$(ups)" 3
 
+rm -f "$W/inactive" "$W/state/last_action"; touch "$W/up-fails"; run; run; run
+check "a failed re-activation is still an attempt" "$(ups)" 4
+check "the failure is logged as an error" "$(tail -1 "$W/out" | head -c 3)" "<3>"
+run; run; run
+check "a failed re-activation still starts the holdoff" "$(ups)" 4
+
 if PATH="$W/bin:$PATH" STATE_DIRECTORY="$W/state" "$SCRIPT" > "$W/out" 2>&1; then
     echo "FAIL: ran without WIFI_WATCHDOG_CONNECTION"; exit 1
 fi
 echo "PASS: refuses to run unconfigured"
+
+for setting in WIFI_WATCHDOG_FAILURES WIFI_WATCHDOG_HOLDOFF; do
+    for bad in 0 abc -1 ""; do
+        if env PATH="$W/bin:$PATH" STATE_DIRECTORY="$W/state" WIFI_WATCHDOG_CONNECTION=testcon \
+            "$setting=$bad" "$SCRIPT" > "$W/out" 2>&1; then
+            [ -n "$bad" ] || continue   # empty means "use the default"
+            echo "FAIL: accepted $setting='$bad'"; exit 1
+        fi
+        grep -q "must be a positive integer" "$W/out" || { echo "FAIL: $setting='$bad' not reported"; exit 1; }
+    done
+done
+echo "PASS: refuses a zero, negative or non-numeric threshold or holdoff"

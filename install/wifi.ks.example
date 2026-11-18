@@ -5,30 +5,48 @@
 
 %pre --erroronfail --log=/tmp/wifi-pre.log
 # No set -x: it would trace the PSK into the log, which Anaconda copies
-# onto the installed disk.
+# onto the installed disk. Both values come through quoted heredocs, so a
+# quote or a $ in either is data.
+SSID=$(cat <<'SSID'
+@SSID@
+SSID
+)
+PSK=$(cat <<'PSK'
+@PSK@
+PSK
+)
 for i in $(seq 1 30); do nmcli -t -f TYPE device | grep -qx wifi && break; sleep 2; done
 nmcli radio wifi on
 for i in 1 2 3 4 5 6; do
   nmcli device wifi rescan || true; sleep 4
-  nmcli device wifi connect "@SSID@" password "@PSK@" && break
+  nmcli device wifi connect "$SSID" password "$PSK" && break
 done
 for i in $(seq 1 30); do getent hosts quay.io >/dev/null && exit 0; sleep 2; done
-echo "Wi-Fi: no route to quay.io after joining @SSID@" >&2
+echo "Wi-Fi: no route to quay.io after joining $SSID" >&2
 exit 1
 %end
 
 %post --erroronfail
+# The SSID arrives through a quoted heredoc and is only ever expanded as a
+# variable, so a quote or a $ in it is data, never shell.
+SSID=$(cat <<'SSID'
+@SSID@
+SSID
+)
+
 # The wifi watchdog (a301) re-activates this connection when its gateway stops
 # answering; this file is what starts its timer.
-echo 'WIFI_WATCHDOG_CONNECTION=@SSID@' > /etc/sysconfig/wifi-watchdog
+printf 'WIFI_WATCHDOG_CONNECTION=%s\n' "$SSID" > /etc/sysconfig/wifi-watchdog
 
-# Anaconda usually copies the installer's connection (id @SSID@, from %pre)
-# into the installed system already. Writing a second profile for the same
-# SSID is how exedore ended up with two that both autoconnect, so write one
-# only when the copy is missing, under the same id and file name.
+# Anaconda usually copies the installer's connection (id = the SSID, from
+# %pre) into the installed system already. Writing a second profile for the
+# same SSID is how exedore ended up with two that both autoconnect, so write
+# one only when the copy is missing, under the same id and file name.
+# A / is legal in an SSID and not in a file name.
+F="/etc/NetworkManager/system-connections/${SSID//\//_}.nmconnection"
 install -d -m 0700 /etc/NetworkManager/system-connections
-grep -qx 'ssid=@SSID@' /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null && exit 0
-cat > '/etc/NetworkManager/system-connections/@SSID@.nmconnection' <<'NM'
+grep -Fqx -- "ssid=$SSID" /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null && exit 0
+cat > "$F" <<'NM'
 [connection]
 id=@SSID@
 type=wifi
@@ -48,6 +66,6 @@ method=auto
 [ipv6]
 method=auto
 NM
-chmod 0600 '/etc/NetworkManager/system-connections/@SSID@.nmconnection'
+chmod 0600 "$F"
 restorecon -R /etc/NetworkManager/system-connections
 %end

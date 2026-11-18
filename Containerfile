@@ -240,7 +240,9 @@ COPY etc/systemd/system/wifi-watchdog.service /usr/lib/systemd/system/wifi-watch
 COPY etc/systemd/system/wifi-watchdog.timer /usr/lib/systemd/system/wifi-watchdog.timer
 RUN chmod 0755 /usr/libexec/wifi-watchdog && systemctl enable wifi-watchdog.timer
 RUN --mount=type=bind,source=tests,target=/run/tests,z \
-    /run/tests/wifi-watchdog.sh /usr/libexec/wifi-watchdog
+    --mount=type=bind,source=install,target=/run/install,z \
+    /run/tests/wifi-watchdog.sh /usr/libexec/wifi-watchdog && \
+    /run/tests/wifi-ks.sh /run/install/wifi.ks.example
 
 # Create node/npm/npx symlinks
 RUN ln -s /usr/bin/node-24 /usr/bin/node && \
