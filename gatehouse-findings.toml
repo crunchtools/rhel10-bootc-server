@@ -1,0 +1,9 @@
+# Gatehouse findings judged by a person or a seat, with the reason.
+
+[[findings]]
+agent = "security"
+category = "security"
+file = "install/wifi.ks.example"
+evidence = "SSID=$(cat <<'SSID'\n@SSID@\nSSID\n)\nPSK=$(cat <<'PSK'\n@PSK@\nPSK\n)"
+status = "not-a-bug"
+reason = "A WPA passphrase is 8-63 printable ASCII characters and cannot hold a newline, and the values are typed by the operator into a local copy of a kickstart whose %pre and %post they already write as root. An SSID with an embedded newline followed by the delimiter is not an input this template meets; quotes and $ are, and the heredocs handle those."
