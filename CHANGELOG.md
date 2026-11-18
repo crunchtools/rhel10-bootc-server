@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-18
+
 ### Added
 - **mt76 kmod overlay with upstream 20b126920a25** (RT#1656). mt7925e hit
   kernel BUG list_debug.c:32 in `mt7925_mac_add_txs` when a station was
