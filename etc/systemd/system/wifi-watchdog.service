@@ -1,0 +1,22 @@
+[Unit]
+Description=Re-activate the Wi-Fi connection when its gateway stops answering (a301)
+Documentation=file:/usr/libexec/wifi-watchdog
+After=NetworkManager.service
+ConditionPathExists=/etc/sysconfig/wifi-watchdog
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/sysconfig/wifi-watchdog
+ExecStart=/usr/libexec/wifi-watchdog
+SyslogIdentifier=wifi-watchdog
+# The miss counter and the last re-activation's time live here between runs.
+RuntimeDirectory=wifi-watchdog
+RuntimeDirectoryPreserve=yes
+# nmcli waits up to 60s for the activation; leave room for the pings around it.
+TimeoutStartSec=90
+
+# Root, because `nmcli connection up` needs it; the rest of the host it only reads.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes

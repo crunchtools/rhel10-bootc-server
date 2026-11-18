@@ -4,7 +4,7 @@
 > **Ratified:** 2026-03-03
 > **Amended:** 2026-11-17
 > **Status:** Active
-> **Inherits:** [crunchtools/constitution](https://github.com/crunchtools/constitution) v1.44.0
+> **Inherits:** [crunchtools/constitution](https://github.com/crunchtools/constitution) v1.46.0
 > **Profile:** Bootc Image
 
 This file holds what is specific to rhel10-bootc-server. The fleet rules and
@@ -24,7 +24,9 @@ through `podman-auto-update.timer`.
 - **Enabled units:** `cockpit.socket` (web console), `podman-auto-update.timer`
   (container updates), `fstrim.timer` (periodic TRIM),
   `systemd-oomd.service` (memory pressure), `sysstat.service` (sar data collection),
-  `rsyslog.service` (log forwarding, aliased as `syslog.service`).
+  `rsyslog.service` (log forwarding, aliased as `syslog.service`),
+  `wifi-watchdog.timer` (re-activates a Wi-Fi connection whose gateway stops
+  answering; starts only on a host with `/etc/sysconfig/wifi-watchdog`).
 - **Packages:** cockpit, petit, git, vim-enhanced, nodejs24 (with
   `node`/`npm`/`npx` symlinks), python3-pip, python3-devel, sqlite, rclone,
   rsyslog, gh, uv, sysstat, systemd-oomd. `linux-mcp-server` is pinned and

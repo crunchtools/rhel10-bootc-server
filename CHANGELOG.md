@@ -18,6 +18,25 @@ All notable changes to this project are documented here. The format follows
   The signature gate is `tests/digest-gate.sh`, whose self-test
   refuses malformed and unsigned digests on every pull request.
 
+## [1.5.0] - 2026-11-18
+
+### Added
+- **Wi-Fi watchdog** (a301). On 2026-11-18 an AP channel switch left exedore's
+  Wi-Fi "connected" with a dead gateway for thirteen minutes, until someone ran
+  `nmcli con up` by hand. `wifi-watchdog.timer` pings the connection's gateway
+  every 30 seconds and re-activates the connection after 3 consecutive misses,
+  at most once per 5 minutes, logging to the journal as `wifi-watchdog`. It
+  starts only on a host with `/etc/sysconfig/wifi-watchdog`
+  (`WIFI_WATCHDOG_CONNECTION=<id>`); `install/wifi.ks.example` writes it.
+
+### Fixed
+- `install/wifi.ks.example` no longer leaves two profiles for one SSID: `%post`
+  writes its own only when Anaconda did not copy the installer's, and names it
+  after the SSID.
+- `install/wifi.ks.example` takes the SSID and PSK as data through quoted
+  heredocs: a quote or a `$` in either no longer breaks, or runs as shell in,
+  `%pre` and `%post`.
+
 ## [1.4.0] - 2026-11-17
 
 ### Changed

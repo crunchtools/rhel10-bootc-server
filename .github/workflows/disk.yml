@@ -82,12 +82,6 @@ jobs:
           # AppArmor, which breaks osbuild's sandbox even in a privileged root
           # container (EPERM on fchownat, mount of containers/storage denied).
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          # What the builder really gets: rootful podman, no user namespace.
-          echo "runner=$RUNNER_NAME environment=$RUNNER_ENVIRONMENT"
-          id
-          sudo podman info --format 'rootless={{.Host.Security.Rootless}} podman={{.Version.Version}} apparmor={{.Host.Security.AppArmorEnabled}}'
-          sudo podman run --rm --privileged --security-opt apparmor=unconfined \
-            --entrypoint sh "$BIB" -c 'id; cat /proc/self/uid_map; grep CapEff /proc/self/status; cat /proc/self/attr/current 2>/dev/null; echo'
           sudo podman run --rm --privileged --pull=missing \
             --security-opt label=type:unconfined_t --security-opt apparmor=unconfined \
             -v ./config.toml:/config.toml:ro -v ./output:/output \

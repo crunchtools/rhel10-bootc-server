@@ -1,0 +1,63 @@
+# The repo's own checks, from quay.io/crunchtools/sdlc -- the same image, the
+# same launcher and the same commands the laptop's hooks run, so a green push
+# predicts a green CI (constitution XII). Nothing here pins a release: the
+# image prints its own launcher, and both float on :latest.
+#
+# The variable SDLC_IMAGE -- a repository's, or the organization's for the
+# whole fleet -- picks other tooling: `main` for what has merged to python-sdlc
+# and not been released, or a release such as `0.9.0` to hold one back. A
+# variable, which only an admin sets, rather than a line a pull request could
+# change in passing.
+#
+# Gourmand runs as its own job, not inside `sdlc ci`: XII has CI run push's
+# checks except Gourmand and Gatehouse, which run through their own workflows
+# (Gatehouse: gatehouse.yml).
+#
+# The job NAME `sdlc ci` is the required check in the org ruleset "Python SDLC
+# gates", and the Gourmand job keeps the name its own workflow gave it. Renaming
+# a job stops it gating, silently.
+#
+# python-sdlc's examples/ci.yml, written by scripts/convert_repo.py. Copy it
+# unchanged.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sdlc:
+    name: sdlc ci
+    timeout-minutes: 30
+    # Same-repo PRs run on our cached runner, pushes and schedules on the uncached
+    # one; forks and Dependabot stay on GitHub's. An empty variable falls back to
+    # ubuntu-latest (crunchtools/trentina security.yml).
+    runs-on: >-
+      ${{ github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && github.event.pull_request.user.login != 'dependabot[bot]'
+          && (vars.CACHED_RUNNER_LABEL || 'ubuntu-latest')
+          || github.event_name != 'pull_request'
+          && (vars.UNCACHED_RUNNER_LABEL || 'ubuntu-latest')
+          || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # .sdlc/bin/sdlc is python-sdlc's bin/sdlc-bootstrap: it asks the image
+      # for its launcher and runs it, as the hooks do.
+      - name: sdlc ci
+        env:
+          SDLC_IMAGE: ${{ vars.SDLC_IMAGE }}
+        run: .sdlc/bin/sdlc ci
+
+  gourmand:
+    name: Code Quality (Gourmand)
+    uses: crunchtools/gatehouse/.github/workflows/gourmand.yml@v0
