@@ -230,6 +230,18 @@ RUN set -e; \
         fi; \
     done
 
+# Wi-Fi watchdog (a301): re-activates a Wi-Fi connection whose gateway stops
+# answering while NM still calls it connected, which is how an AP channel
+# switch took exedore off the network on 2026-11-18. Enabled for every host;
+# the timer starts only where /etc/sysconfig/wifi-watchdog names a connection
+# (install/wifi.ks.example writes it), so a wired host never runs it.
+COPY etc/libexec/wifi-watchdog /usr/libexec/wifi-watchdog
+COPY etc/systemd/system/wifi-watchdog.service /usr/lib/systemd/system/wifi-watchdog.service
+COPY etc/systemd/system/wifi-watchdog.timer /usr/lib/systemd/system/wifi-watchdog.timer
+RUN chmod 0755 /usr/libexec/wifi-watchdog && systemctl enable wifi-watchdog.timer
+RUN --mount=type=bind,source=tests,target=/run/tests,z \
+    /run/tests/wifi-watchdog.sh /usr/libexec/wifi-watchdog
+
 # Create node/npm/npx symlinks
 RUN ln -s /usr/bin/node-24 /usr/bin/node && \
     ln -s /usr/bin/npm-24 /usr/bin/npm && \

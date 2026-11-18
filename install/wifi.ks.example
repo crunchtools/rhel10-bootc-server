@@ -18,10 +18,19 @@ exit 1
 %end
 
 %post --erroronfail
+# The wifi watchdog (a301) re-activates this connection when its gateway stops
+# answering; this file is what starts its timer.
+echo 'WIFI_WATCHDOG_CONNECTION=@SSID@' > /etc/sysconfig/wifi-watchdog
+
+# Anaconda usually copies the installer's connection (id @SSID@, from %pre)
+# into the installed system already. Writing a second profile for the same
+# SSID is how exedore ended up with two that both autoconnect, so write one
+# only when the copy is missing, under the same id and file name.
 install -d -m 0700 /etc/NetworkManager/system-connections
-cat > /etc/NetworkManager/system-connections/wifi.nmconnection <<'NM'
+grep -qx 'ssid=@SSID@' /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null && exit 0
+cat > '/etc/NetworkManager/system-connections/@SSID@.nmconnection' <<'NM'
 [connection]
-id=wifi
+id=@SSID@
 type=wifi
 autoconnect=true
 
@@ -39,6 +48,6 @@ method=auto
 [ipv6]
 method=auto
 NM
-chmod 0600 /etc/NetworkManager/system-connections/wifi.nmconnection
+chmod 0600 '/etc/NetworkManager/system-connections/@SSID@.nmconnection'
 restorecon -R /etc/NetworkManager/system-connections
 %end
