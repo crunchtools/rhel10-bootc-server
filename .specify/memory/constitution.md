@@ -1,6 +1,6 @@
 # rhel10-bootc-server Constitution
 
-> **Version:** 1.4.0
+> **Version:** 1.4.1
 > **Ratified:** 2026-03-03
 > **Amended:** 2026-11-18
 > **Status:** Active
@@ -37,10 +37,11 @@ through `podman-auto-update.timer`.
   repository at `crunchtools.github.io/packages` (petit); both repo files and
   GPG keys ship in `etc/` because the build needs them.
 - **Kernel module overlay:** the mt76 Wi-Fi tree (mt7925e and its stack) is
-  rebuilt from the image kernel's own source RPM with upstream 20b126920a25,
-  pinned by sha256 in `kmod/mt76/`, and installed to `updates/` (RT#1656).
-  The build fails when the kernel already carries the fix or the patch no
-  longer applies; the overlay is deleted when RHEL ships the fix.
+  rebuilt from the image kernel's own source RPM with upstream 20b126920a25
+  (this repo's copy in `kmod/mt76/`, pinned by sha256) and installed to
+  `updates/` (RT#1656). The build fails when the kernel already carries the
+  fix or the patch no longer applies; the overlay is then deleted as
+  `kmod/mt76/README.md` lists under REMOVING.
 - **Timezone:** America/New_York. Shell history settings and
   `RCLONE_CONFIG=/etc/rclone.conf` come from `etc/bashrc.customizations`.
 

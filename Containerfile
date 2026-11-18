@@ -8,9 +8,11 @@
 # which depmod prefers over the in-tree modules.
 #
 # It fails the build, loudly, when:
-#   - the patch's bytes are not the ones pinned here;
+#   - the patch's bytes are not the ones pinned here, which is this repo's
+#     copy of 20b126920a25 (kmod/mt76/README.md says why it is not a hash of
+#     what git.kernel.org serves);
 #   - the kernel already carries the fix (the patch reverse-applies): RHEL has
-#     caught up, so delete kmod/mt76, this stage and its COPY below;
+#     caught up, so remove the overlay as kmod/mt76/README.md (REMOVING) lists;
 #   - the patch does not apply: a wireless rebase moved mt76_sta_add, so
 #     rebase the patch or drop the overlay. Until then the weekly errata build
 #     fails too, which is the point: nobody ships an unpatched exedore by
@@ -52,7 +54,8 @@ SRC=${TREE}drivers/net/wireless/mediatek/mt76
 make -C "/usr/src/kernels/${KVER}" M="$SRC" -j"$(nproc)" modules
 DEST=/out/lib/modules/${KVER}/updates/mt76
 cd "$SRC"
-find . -name '*.ko' -exec install -D -m 0644 {} "$DEST/{}" \;
+# -exec + so a failed install fails find, and the build; \; would not.
+find . -name '*.ko' -exec sh -c 'd=$1; shift; for k; do install -D -m 0644 "$k" "$d/$k" || exit; done' sh "$DEST" {} +
 find "$DEST" -name '*.ko' -exec strip --strip-debug {} +
 test -f "$DEST/mt7925/mt7925e.ko" && test -f "$DEST/mt76.ko"
 find "$DEST" -name '*.ko' | sort

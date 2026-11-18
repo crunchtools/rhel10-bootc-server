@@ -4,9 +4,10 @@
 #   apply-fix.sh PATCH TREE [KVER]
 #
 # Refuses when the tree already carries the fix (the patch reverse-applies):
-# RHEL has caught up and the overlay should be deleted. Refuses when the patch
-# does not apply: a wireless rebase moved mt76_sta_add and the patch needs a
-# rebase. git apply allows no fuzz, so a near miss is a refusal too.
+# RHEL has caught up and the overlay should be deleted (kmod/mt76/README.md,
+# REMOVING). Refuses when the patch does not apply: a wireless rebase moved
+# mt76_sta_add and the patch needs a rebase. git apply allows no fuzz, so a
+# near miss is a refusal too.
 set -euo pipefail
 
 patch=$1
@@ -15,7 +16,7 @@ kver=${3:-this kernel}
 
 cd "$tree"
 if git apply -p1 -R --check "$patch" 2>/dev/null; then
-    echo "${kver} already carries 20b126920a25: delete kmod/mt76, scripts/mt76-apply-fix.sh, the mt76 stage and its COPY" >&2
+    echo "${kver} already carries 20b126920a25: remove the overlay, every piece listed under REMOVING in kmod/mt76/README.md" >&2
     exit 1
 fi
 if ! git apply -p1 --check "$patch"; then

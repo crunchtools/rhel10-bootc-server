@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **mt76 overlay review notes** (#60). A failed `install` of an overlay module
+  now fails the build: `find -exec … \;` had exited 0 regardless. The
+  "already carries 20b126920a25" refusal points at a REMOVING list in
+  `kmod/mt76/README.md` that names every piece of the overlay, and the patch
+  pin is described as this repo's copy of 20b126920a25 rather than a hash of
+  what git.kernel.org serves.
+
 ## [1.6.0] - 2026-11-18
 
 ### Added
