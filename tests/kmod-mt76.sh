@@ -13,7 +13,8 @@ kver=$(ls /usr/lib/modules)
 [ "$(echo "$kver" | wc -l)" = 1 ] || fail "more than one kernel: $kver"
 
 for m in mt76 mt76-connac-lib mt792x-lib mt7925-common mt7925e; do
-    file=$(modinfo -k "$kver" -F filename "$m")
+    # modinfo may name the path through /lib, a symlink to usr/lib.
+    file=$(readlink -f "$(modinfo -k "$kver" -F filename "$m")")
     [[ $file == "/usr/lib/modules/$kver/updates/mt76/"* ]] || fail "$m resolves to $file, not the overlay"
     magic=$(modinfo -k "$kver" -F vermagic "$m")
     [[ $magic == "$kver "* ]] || fail "$m has vermagic '$magic', not $kver"

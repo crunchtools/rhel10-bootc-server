@@ -9,11 +9,11 @@ name: Container
 
 on:
   pull_request:
-    paths: ['Containerfile', 'etc/**', 'kmod/**', 'tests/**', '.github/workflows/container.yml']
+    paths: ['Containerfile', 'etc/**', 'kmod/**', 'scripts/**', 'tests/**', '.github/workflows/container.yml']
   push:
     branches: [main]
     tags: ["v*"]
-    paths: ['Containerfile', 'etc/**', 'kmod/**', 'tests/**', '.github/workflows/container.yml']
+    paths: ['Containerfile', 'etc/**', 'kmod/**', 'scripts/**', 'tests/**', '.github/workflows/container.yml']
   schedule:
     - cron: "47 5 * * 1"   # weekly: base-image errata, gated like any build
   workflow_dispatch:

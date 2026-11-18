@@ -24,8 +24,10 @@ FROM registry.redhat.io/rhel10/rhel-bootc AS mt76
 ARG MT76_PATCH=0001-wifi-mt76-add-wcid-publish-check-in-mt76_sta_add.patch
 ARG MT76_PATCH_SHA256=be881c0808ec51568c0a9e24d6eb2ba7791879adf810eeb86f6ddcac35d3c130
 COPY kmod/mt76/${MT76_PATCH} /build/mt76.patch
+COPY scripts/mt76-apply-fix.sh /build/apply-fix.sh
 RUN --mount=type=secret,id=activation_key \
-    --mount=type=secret,id=org_id <<'EOF'
+    --mount=type=secret,id=org_id \
+    --mount=type=bind,source=tests,target=/run/tests,z <<'EOF'
 set -euo pipefail
 echo "${MT76_PATCH_SHA256}  /build/mt76.patch" | sha256sum -c -
 subscription-manager register \
@@ -42,17 +44,11 @@ cd /build
 dnf download --source --enablerepo='*-baseos-source-rpms' "kernel-${KVER%.*}"
 rpm2cpio kernel-*.src.rpm | cpio -idm --quiet 'linux-*.tar.xz'
 tar -xJf linux-*.tar.xz --wildcards '*/drivers/net/wireless/mediatek/mt76/*'
-cd linux-*/
-if git apply -p1 -R --check /build/mt76.patch 2>/dev/null; then
-    echo "kernel ${KVER} already carries 20b126920a25: delete kmod/mt76, the mt76 stage and its COPY" >&2
-    exit 1
-fi
-git apply -p1 --check /build/mt76.patch || {
-    echo "20b126920a25 does not apply to kernel ${KVER}'s mt76: rebase kmod/mt76 or drop the overlay" >&2
-    exit 1
-}
-git apply -p1 /build/mt76.patch
-SRC=$PWD/drivers/net/wireless/mediatek/mt76
+# The guard's own refusals, proven on a fixture before it judges this kernel.
+/run/tests/kmod-mt76-apply.sh /build/apply-fix.sh /build/mt76.patch /run/tests/fixtures/mt76
+TREE=$(echo /build/linux-*/)
+/build/apply-fix.sh /build/mt76.patch "$TREE" "kernel ${KVER}"
+SRC=${TREE}drivers/net/wireless/mediatek/mt76
 make -C "/usr/src/kernels/${KVER}" M="$SRC" -j"$(nproc)" modules
 DEST=/out/lib/modules/${KVER}/updates/mt76
 cd "$SRC"
