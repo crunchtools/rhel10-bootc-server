@@ -88,7 +88,8 @@ signatures with that public key only.
 
 `disk.yml` builds a raw disk only from a digest this key signed
 (`tests/digest-gate.sh`), for hosts such as a Linode that cannot install from
-the registry (RT#1638). The disk boots pinned to that digest and is switched to
+the registry (RT#1638), and only when dispatched from `main` or a `v*` tag: the
+disk's root key is the checked-out `install/root-authorized-keys`. The disk boots pinned to that digest and is switched to
 `:latest` after first boot.
 Key rotation and loss: [docs/signing-key.md](../../docs/signing-key.md).
 Widening the scope to all of quay.io/crunchtools waits on #47.

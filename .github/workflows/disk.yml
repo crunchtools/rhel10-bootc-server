@@ -2,8 +2,10 @@
 # boots a raw disk with direct-disk, and `bootc install to-existing-root` fails
 # there because Linode disks carry no partition table; a bootc-image-builder raw
 # uploaded as a Linode image is the route that works. Dispatched with the digest
-# to install. A pull request that changes this file builds from `latest`, so the
-# build is proven before a merge rather than at the first dispatch.
+# to install, and only from main or a v* tag: the root key comes from the
+# checked-out install/root-authorized-keys, so a run on any other ref could ship
+# someone else's key under the artifact name an operator downloads. Pull
+# requests run only the digest gate, which is unprivileged and uploads nothing.
 #
 # The source digest must carry the bootc signature, or nothing is built: a disk
 # is a host, and it should start from what a host would accept as an update.
@@ -32,6 +34,9 @@ concurrency:
 jobs:
   disk:
     name: raw disk
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     # GitHub-hosted only: osbuild needs real root, and a runner that maps only
     # uid 0 into a user namespace fails every chown in the build root.
     runs-on: ubuntu-24.04
@@ -57,9 +62,6 @@ jobs:
       - name: The source digest is signed by the bootc key
         run: |
           set -euo pipefail
-          if [ -z "$DIGEST" ]; then
-            DIGEST=$(skopeo inspect --no-tags --format '{{.Digest}}' "docker://$REPO:latest")
-          fi
           IMAGE=$(tests/digest-gate.sh "$REPO" "$DIGEST" etc/pki/sigstore/crunchtools-bootc.pub)
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
       - name: Free runner disk
