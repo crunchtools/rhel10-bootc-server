@@ -1,0 +1,93 @@
+#!/bin/bash
+# Re-activate a Wi-Fi connection whose data path has died (a301).
+#
+# One check per run; wifi-watchdog.timer runs it every 30 seconds. On
+# 2026-11-18 at 08:44Z exedore's AP switched channel (wpa_supplicant
+# CTRL-EVENT-CHANNEL-SWITCH, to 5805 MHz). NetworkManager kept the device
+# "connected", but the gateway stopped answering: DNS died, wg0 and the runners
+# lost GitHub, and it stayed that way until someone ran `nmcli con up` by hand
+# thirteen minutes later. NM's own connectivity check would not have helped:
+# it only lowers the state and the route metric, it never re-activates.
+#
+# So the test is the data path itself: ping the connection's gateway out of
+# its own device. After WIFI_WATCHDOG_FAILURES consecutive misses, re-activate
+# the connection, at most once per WIFI_WATCHDOG_HOLDOFF seconds, so an AP
+# that is really down gets a reconnect every few minutes rather than a
+# reconnect storm.
+#
+# Configuration is /etc/sysconfig/wifi-watchdog, per host; its existence is
+# what lets the timer start:
+#
+#   WIFI_WATCHDOG_CONNECTION  the NM connection id (required)
+#   WIFI_WATCHDOG_GATEWAY     the address to ping (default: the connection's
+#                             IPv4 gateway, as NM learnt it from DHCP)
+#   WIFI_WATCHDOG_FAILURES    consecutive misses before acting (default 3)
+#   WIFI_WATCHDOG_HOLDOFF     seconds between re-activations (default 300)
+#
+# State is two numbers in $STATE_DIRECTORY (systemd's RuntimeDirectory, kept
+# across runs): the current run of misses and the time of the last
+# re-activation. A reboot starts both from zero, which is what a reboot means.
+set -uo pipefail
+
+CON=${WIFI_WATCHDOG_CONNECTION:-}
+THRESHOLD=${WIFI_WATCHDOG_FAILURES:-3}
+HOLDOFF=${WIFI_WATCHDOG_HOLDOFF:-300}
+STATE=${STATE_DIRECTORY:-/run/wifi-watchdog}
+
+# Priority prefixes are read by journald (SyslogLevelPrefix=, on by default).
+info() { echo "<6>$*"; }
+warn() { echo "<4>$*"; }
+err()  { echo "<3>$*"; }
+
+[ -n "$CON" ] || { err "WIFI_WATCHDOG_CONNECTION is not set"; exit 1; }
+for v in THRESHOLD HOLDOFF; do
+    [[ ${!v} =~ ^[0-9]+$ ]] && [ "${!v}" -gt 0 ] || { err "$v must be a positive integer, got '${!v}'"; exit 1; }
+done
+mkdir -p "$STATE" || exit 1
+
+read_num() { local n; n=$(cat "$STATE/$1" 2>/dev/null); [[ $n =~ ^[0-9]+$ ]] && echo "$n" || echo 0; }
+
+failures=$(read_num failures)
+now=$(date +%s)
+
+# An inactive connection has no device and no gateway; that is a miss too.
+# NM's autoconnect normally handles it, and when it has not, a re-activation
+# is exactly what is wanted.
+dev=$(nmcli -g GENERAL.DEVICES connection show "$CON" 2>/dev/null)
+gw=${WIFI_WATCHDOG_GATEWAY:-$(nmcli -g IP4.GATEWAY connection show "$CON" 2>/dev/null)}
+
+if [ -n "$dev" ] && [ -n "$gw" ] && ping -n -q -c 3 -i 0.5 -W 2 -I "$dev" "$gw" >/dev/null 2>&1; then
+    if [ "$failures" -gt 0 ]; then
+        info "gateway $gw answering again on $dev after $failures failed check(s)"
+    fi
+    echo 0 > "$STATE/failures"
+    exit 0
+fi
+
+failures=$((failures + 1))
+echo "$failures" > "$STATE/failures"
+if [ -z "$dev" ] || [ -z "$gw" ]; then
+    warn "connection $CON is not active (device '${dev}', gateway '${gw}') ($failures/$THRESHOLD)"
+else
+    warn "gateway $gw not answering on $dev ($failures/$THRESHOLD)"
+fi
+[ "$failures" -ge "$THRESHOLD" ] || exit 0
+
+last=$(read_num last_action)
+since=$((now - last))
+if [ "$last" -gt 0 ] && [ "$since" -lt "$HOLDOFF" ]; then
+    warn "re-activation of $CON held off: the last one was ${since}s ago (holdoff ${HOLDOFF}s)"
+    exit 0
+fi
+
+# Recorded before acting, so a re-activation that hangs until the unit's
+# timeout still counts against the holdoff.
+echo "$now" > "$STATE/last_action"
+echo 0 > "$STATE/failures"
+warn "re-activating $CON after $failures failed check(s)"
+if out=$(nmcli --wait 60 connection up "$CON" 2>&1); then
+    info "re-activated $CON: $out"
+else
+    err "re-activating $CON failed: $out"
+fi
+exit 0

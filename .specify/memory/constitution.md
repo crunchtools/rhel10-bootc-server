@@ -24,7 +24,9 @@ through `podman-auto-update.timer`.
 - **Enabled units:** `cockpit.socket` (web console), `podman-auto-update.timer`
   (container updates), `fstrim.timer` (periodic TRIM),
   `systemd-oomd.service` (memory pressure), `sysstat.service` (sar data collection),
-  `rsyslog.service` (log forwarding, aliased as `syslog.service`).
+  `rsyslog.service` (log forwarding, aliased as `syslog.service`),
+  `wifi-watchdog.timer` (re-activates a Wi-Fi connection whose gateway stops
+  answering; starts only on a host with `/etc/sysconfig/wifi-watchdog`).
 - **Packages:** cockpit, petit, git, vim-enhanced, nodejs24 (with
   `node`/`npm`/`npx` symlinks), python3-pip, python3-devel, sqlite, rclone,
   rsyslog, gh, uv, sysstat, systemd-oomd. `linux-mcp-server` is pinned and

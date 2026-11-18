@@ -1,0 +1,15 @@
+# Enabled in the image for every host, started only on a host that has
+# /etc/sysconfig/wifi-watchdog. The condition sits on the timer rather than
+# only on the service so a wired host logs one skipped start at boot, not one
+# every 30 seconds.
+[Unit]
+Description=Check the Wi-Fi data path every 30 seconds (a301)
+ConditionPathExists=/etc/sysconfig/wifi-watchdog
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
