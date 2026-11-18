@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-18
+
 ### Added
 - **Wi-Fi watchdog** (a301). On 2026-11-18 an AP channel switch left exedore's
   Wi-Fi "connected" with a dead gateway for thirteen minutes, until someone ran
