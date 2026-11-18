@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The container release job grants `issues: write`, so a failed scheduled run files an issue instead of only warning (constitution v1.51.0 alert).
+
 ### Fixed
 - **mt76 overlay review notes** (#60). A failed `install` of an overlay module
   now fails the build: `find -exec … \;` had exited 0 regardless. The
