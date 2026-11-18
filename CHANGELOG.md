@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Raw disk images from a signed digest** (RT#1638). `disk.yml` is dispatched
+  with a digest, refuses one the bootc key did not sign, and builds a
+  bootc-image-builder raw disk with root keyed from
+  `install/root-authorized-keys`, uploaded as a workflow artifact. It is how a
+  Linode host gets the image: `bootc install to-existing-root` cannot work on
+  Linode's unpartitioned disks.
+  The disk boots pinned to the digest; `bootc switch` it to `:latest` after
+  first boot, a pull the shipped policy verifies.
+  It builds only when dispatched from `main` or a `v*` tag, since the root key
+  comes from the checked-out ref. The signature gate is `tests/digest-gate.sh`,
+  whose self-test refuses malformed and unsigned digests on every pull request.
+
 ## [1.5.0] - 2026-11-18
 
 ### Added
