@@ -45,5 +45,9 @@ printf '[wifi]\nssid=%s\n' "${SSID/a.b/aXb}" > "$R/etc/NetworkManager/system-con
 run "$R"
 check "a regex look-alike SSID is not mistaken for ours" "$(ls "$R/etc/NetworkManager/system-connections" | wc -l)" 2
 
+SSID=SSID; FILE=SSID.nmconnection
+R="$W/delimiter"; run "$R"
+check "an SSID named like a delimiter survives" "$(cat "$R/etc/sysconfig/wifi-watchdog")" "WIFI_WATCHDOG_CONNECTION=SSID"
+
 [ ! -e "$W/PWNED" ] || { echo "FAIL: the SSID was executed as shell"; exit 1; }
 echo "PASS: the SSID is never executed"

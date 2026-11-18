@@ -6,14 +6,14 @@
 %pre --erroronfail --log=/tmp/wifi-pre.log
 # No set -x: it would trace the PSK into the log, which Anaconda copies
 # onto the installed disk. Both values come through quoted heredocs, so a
-# quote or a $ in either is data.
-SSID=$(cat <<'SSID'
+# quote or a $ in either is data; the delimiters are not names an SSID uses.
+SSID=$(cat <<'__WIFI_KS_SSID_END__'
 @SSID@
-SSID
+__WIFI_KS_SSID_END__
 )
-PSK=$(cat <<'PSK'
+PSK=$(cat <<'__WIFI_KS_PSK_END__'
 @PSK@
-PSK
+__WIFI_KS_PSK_END__
 )
 for i in $(seq 1 30); do nmcli -t -f TYPE device | grep -qx wifi && break; sleep 2; done
 nmcli radio wifi on
@@ -29,9 +29,9 @@ exit 1
 %post --erroronfail
 # The SSID arrives through a quoted heredoc and is only ever expanded as a
 # variable, so a quote or a $ in it is data, never shell.
-SSID=$(cat <<'SSID'
+SSID=$(cat <<'__WIFI_KS_SSID_END__'
 @SSID@
-SSID
+__WIFI_KS_SSID_END__
 )
 
 # The wifi watchdog (a301) re-activates this connection when its gateway stops
