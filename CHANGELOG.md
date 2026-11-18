@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The container release runs constitution v1.51.0's `container-release.yml`
+  (was v1.46.0) and grants it `issues: write`, so a failed weekly rebuild opens
+  an issue instead of only emailing whoever last touched the cron line. A `v*`
+  promote now also refuses an image whose `version` label names a different
+  release of this repo; this image sets none and inherits rhel-bootc's, which
+  is not compared.
+
 ### Fixed
 - **mt76 overlay review notes** (#60). A failed `install` of an overlay module
   now fails the build: `find -exec … \;` had exited 0 regardless. The
