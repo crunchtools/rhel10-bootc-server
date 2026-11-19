@@ -161,6 +161,9 @@ with open("/etc/containers/policy.json", "w") as f:
 with open("/etc/containers/policy.json") as f:
     assert json.load(f) == policy
 EOF
+RUN --mount=type=bind,source=tests,target=/run/tests,z \
+    /run/tests/sigpolicy.sh && \
+    /run/tests/sigpolicy.sh /etc/containers/policy.json /etc/containers/registries.d
 
 # Backup interlock (RT #1594). `bootc upgrade --apply` reboots this host on its
 # own, and it killed a ten-hour pCloud rotation at 93%. The pbs rotations hold
