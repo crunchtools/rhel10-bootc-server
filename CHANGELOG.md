@@ -105,6 +105,8 @@ All notable changes to this project are documented here. The format follows
   token can no longer swap a service image that `podman auto-update` pulls
   nightly. Hosts refuse every unsigned `quay.io/crunchtools` image from the
   first boot of this image, so it ships only once every image in use is signed.
+  `tests/sigpolicy.sh` fails the build if any `quay.io/crunchtools/<repo>`
+  scope in `policy.json` or `registries.d` would exempt one repository.
 
 ## [1.5.0] - 2026-11-18
 
