@@ -76,12 +76,13 @@ monitoring checks otherwise left hundreds idle (RT #1513).
 
 ## Signed Updates
 
-Hosts accept a `quay.io/crunchtools/rhel10-bootc-*` image only if it carries a
-cosign signature from the key in `etc/pki/sigstore/crunchtools-bootc.pub`
-(#44). The Containerfile merges two `sigstoreSigned` entries
-(`matchRepository`) into the base's `policy.json` and writes the result to
+Hosts accept a `quay.io/crunchtools` image -- the bootc image and every
+service image -- only if it carries a cosign signature from the key in
+`etc/pki/sigstore/crunchtools-bootc.pub` (#44, #47). The Containerfile merges
+one `sigstoreSigned` entry (`matchRepository`) for the `quay.io/crunchtools`
+namespace into the base's `policy.json` and writes the result to
 `/etc/containers/policy.json`; `registries.d/crunchtools-bootc.yaml` turns on
-sigstore attachments for the same two repositories. The default stays
+sigstore attachments for the same namespace. The default stays
 `insecureAcceptAnything` and the Red Hat entries are untouched, so hosts keep
 the plain `bootc switch` origin: `--enforce-container-sigpolicy` refuses a
 policy with that default. `container.yml` signs each promoted digest (never a

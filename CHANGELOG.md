@@ -45,6 +45,13 @@ All notable changes to this project are documented here. The format follows
   comes from the checked-out ref. The signature gate is `tests/digest-gate.sh`,
   whose self-test refuses malformed and unsigned digests on every pull request.
 
+### Changed
+- **Signature policy covers all of `quay.io/crunchtools`** (#47). The two
+  scoped `rhel10-bootc-*` entries become one namespace entry, so a stolen Quay
+  token can no longer swap a service image that `podman auto-update` pulls
+  nightly. Hosts refuse every unsigned `quay.io/crunchtools` image from the
+  first boot of this image, so it ships only once every image in use is signed.
+
 ## [1.5.0] - 2026-11-18
 
 ### Added

@@ -114,15 +114,15 @@ COPY etc/systemd/journald.conf.d/10-forward-to-syslog.conf /etc/systemd/journald
 COPY etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf /etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf
 COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/containers.conf.d/50-exec-cleanup.conf
 
-# Signed updates (#44). A stolen Quay token could move :latest to any image,
-# and every host would boot it at the next weekly upgrade. The pipeline signs
-# each promoted digest with cosign; these entries make c/image refuse a
-# quay.io/crunchtools/rhel10-bootc-* image that key did not sign. bootc honours
+# Signed updates (#44, #47). A stolen Quay token could move any tag to any
+# image, and every host would run it at the next bootc upgrade or nightly
+# podman auto-update. The pipeline signs each promoted digest with cosign;
+# these entries make c/image refuse any quay.io/crunchtools image that key did
+# not sign -- the bootc image itself and every service image. bootc honours
 # them through its default ostree-unverified-registry origin -- do NOT switch
 # hosts with --enforce-container-sigpolicy, which refuses any policy whose
-# default is insecureAcceptAnything, and that default stays: every other
-# crunchtools image is unsigned and updates nightly through podman auto-update
-# (#47). The Red Hat entries are kept as the base ships them. The base may
+# default is insecureAcceptAnything, and that default stays for the other
+# registries. The Red Hat entries are kept as the base ships them. The base may
 # ship its policy in /etc or only in /usr/share (containers-common 6); the
 # merged file goes to /etc, which outranks both.
 COPY etc/pki/sigstore/crunchtools-bootc.pub /etc/pki/sigstore/crunchtools-bootc.pub
@@ -140,15 +140,16 @@ with open(src) as f:
 policy = json.loads(json.dumps(base))
 docker = policy.setdefault("transports", {}).setdefault("docker", {})
 # cosign signs the repository, not a tag, so only matchRepository accepts it.
-for repo in ("rhel10-bootc-server", "rhel10-bootc-workstation"):
-    docker["quay.io/crunchtools/" + repo] = [{
-        "type": "sigstoreSigned",
-        "keyPath": key,
-        "signedIdentity": {"type": "matchRepository"},
-    }]
-# Only the two scopes change: the default and every entry the base shipped
+# A namespace scope covers every repository under it, each matched to its own
+# name.
+docker["quay.io/crunchtools"] = [{
+    "type": "sigstoreSigned",
+    "keyPath": key,
+    "signedIdentity": {"type": "matchRepository"},
+}]
+# Only that scope changes: the default and every entry the base shipped
 # (the Red Hat keys among them) come through untouched.
-added = {"quay.io/crunchtools/rhel10-bootc-server", "quay.io/crunchtools/rhel10-bootc-workstation"}
+added = {"quay.io/crunchtools"}
 assert policy["default"] == base["default"]
 for transport, scopes in base.get("transports", {}).items():
     for scope, reqs in scopes.items():
