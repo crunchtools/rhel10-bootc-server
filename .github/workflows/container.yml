@@ -26,7 +26,7 @@ permissions: {}
 
 jobs:
   container:
-    uses: crunchtools/constitution/.github/workflows/container-release.yml@v1.51.0
+    uses: crunchtools/constitution/.github/workflows/container-release.yml@v1.56.0
     permissions:
       contents: read
       issues: write   # the alert job files a failed schedule as an issue
@@ -34,6 +34,8 @@ jobs:
     with:
       image: quay.io/crunchtools/rhel10-bootc-server
       format: oci
+      # The Containerfile never COPYs these, so a release PR reuses the gated digest.
+      outside-image: VERSION CHANGELOG.md
       free-disk: true
       redhat-registry: true
       rhsm: true
