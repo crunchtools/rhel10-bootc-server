@@ -19,7 +19,7 @@ on:
     branches: [main]
     tags: ["v*"]
   schedule:
-    - cron: "47 5 * * 1"   # weekly: base-image errata, gated like any build
+    - cron: "47 5 * * 0"   # weekly, early Sunday: base-image errata, gated like any build
   workflow_dispatch:
 
 permissions: {}

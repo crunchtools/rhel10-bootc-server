@@ -20,6 +20,8 @@ All notable changes to this project are documented here. The format follows
   VERSION CHANGELOG.md` (RT#1660). A release pull request, its merge and its
   `v*` tag reuse the digest the feature pull request built and gated, so a
   change costs one build and a release is a tag move.
+- The weekly errata rebuild runs early Sunday (05:47 UTC) instead of Monday,
+  so a broken rebuild surfaces before the working week.
 - Gatehouse triage receives the review job's result (`review_result`), so a PR whose review died before posting anything is held instead of passing.
 - The container release runs constitution v1.51.0's `container-release.yml`
   (was v1.46.0) and grants it `issues: write`, so a failed weekly rebuild opens
