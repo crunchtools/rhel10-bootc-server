@@ -1,0 +1,28 @@
+[Unit]
+Description=SSH tunnel linking mail.crunchtools.com to rootsofthevalley and newsletter on gloval
+After=network-online.target mail.crunchtools.com.service
+Wants=network-online.target
+
+[Service]
+# Until Hetzner lifts gloval outbound port 25 (RT #1546). -L: lotor mail
+# delivers inbound mail to gloval. -R: rootsofthevalley on gloval relays
+# outbound mail through lotor mail. Runs ssh from the pbs image because the
+# host refuses to exec /usr/bin/ssh from systemd units.
+ExecStart=/usr/bin/podman run --rm --name mail-tunnel-gloval --network host \
+    --label PODMAN_SYSTEMD_UNIT=mail-tunnel-gloval.service \
+    --label io.containers.autoupdate=registry \
+    -v /etc/mail-tunnel:/k:z --entrypoint /usr/bin/ssh quay.io/crunchtools/pbs:latest \
+    -NT -p 22422 -i /k/id_ed25519 \
+    -o UserKnownHostsFile=/k/known_hosts -o StrictHostKeyChecking=accept-new \
+    -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+    -o GatewayPorts=yes \
+    -L 10.89.1.1:2525:127.0.0.1:2525 \
+    -L 10.89.1.1:2526:127.0.0.1:2526 \
+    -R 10.89.1.1:2587:10.89.1.2:25 \
+    mail-tunnel@gloval.dc1.crunchtools.com
+ExecStop=/usr/bin/podman stop -t 5 mail-tunnel-gloval
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

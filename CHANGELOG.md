@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Lotor's mail-only host config** (a116, RT#1638). `hosts/lotor/` holds the
+  trimmed firewall and tunnel unit that mail.crunchtools.com runs on the
+  Nanode, plus how to put the disk.yml raw on a Linode: it is 10 GiB, over
+  Linode's 6 GiB image cap, so it is written straight onto a raw disk.
 - **Signature backfill** (#47, #64). `signing/backfill.txt` lists the 93
   `quay.io/crunchtools` digests hosts run or roll back to that promote will
   never sign (`:latest` from before a repo set `sign: true`, `rollback-*`,
