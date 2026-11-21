@@ -1,11 +1,14 @@
 # Raw disk for hosts that cannot install from the registry (RT#1638). Linode
 # boots a raw disk with direct-disk, and `bootc install to-existing-root` fails
 # there because Linode disks carry no partition table; a bootc-image-builder raw
-# uploaded as a Linode image is the route that works. Dispatched with the digest
-# to install, and only from main or a v* tag: the root key comes from the
-# checked-out install/root-authorized-keys, so a run on any other ref could ship
-# someone else's key under the artifact name an operator downloads. Pull
-# requests run only the digest gate, which is unprivileged and uploads nothing.
+# written onto a raw Linode disk is the route that works. It cannot go in as a
+# Linode image: the raw is 10 GiB and Linode caps an image at 6 GiB, so stream
+# it onto the disk from a throwaway helper disk (hosts/lotor/README.md).
+# Dispatched with the digest to install, and only from main or a v* tag: the
+# root key comes from the checked-out install/root-authorized-keys, so a run on
+# any other ref could ship someone else's key under the artifact name an
+# operator downloads. Pull requests run only the digest gate, which is
+# unprivileged and uploads nothing.
 #
 # The source digest must carry the bootc signature, or nothing is built: a disk
 # is a host, and it should start from what a host would accept as an update.

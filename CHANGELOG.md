@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Lotor's mail-only host config** (a116, RT#1638). `hosts/lotor/` holds the
+  trimmed firewall and tunnel unit that mail.crunchtools.com runs on the
+  Nanode, plus how to put the disk.yml raw on a Linode: it is 10 GiB, over
+  Linode's 6 GiB image cap, so it is written straight onto a raw disk.
 - **Raw disk images from a signed digest** (RT#1638). `disk.yml` is dispatched
   with a digest, refuses one the bootc key did not sign, and builds a
   bootc-image-builder raw disk with root keyed from
