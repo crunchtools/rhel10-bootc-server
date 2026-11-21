@@ -10,6 +10,7 @@
 # a tag: a tag can move between review and signing.
 quay.io/crunchtools/acquacotta@sha256:05e4e7e2f8424aa317e908412755e7af50ccf356f4e7ef8ed98f71b13fb31605  # :rollback-latest
 quay.io/crunchtools/acquacotta@sha256:168b9673a5bd42c2937db2fc6bcea1869caf9801b3e5d00860e064ee9ae7b59c  # :latest
+quay.io/crunchtools/acquacotta@sha256:2027dedac75613372fef904ff19fe1067cebf7059489f90322fae21fe45a5fe8  # running on gloval (older than :latest)
 quay.io/crunchtools/expressvpn@sha256:0c5a7ca56bde2456751a3530f1955ac7c9b24c64e3f75119a5b869e015460380  # :rollback-latest
 quay.io/crunchtools/expressvpn@sha256:4386da1423eda2f48343e9d2e69a87e54957f36a79186c37df1098929e05e78e  # :latest
 quay.io/crunchtools/google-workspace-mcp@sha256:b7a54ef65050b91542d044315550b36867888d1aafd8b9ce03774a87506963e9  # :rollback-latest
@@ -84,6 +85,8 @@ quay.io/crunchtools/postiz@sha256:2275f5ff0d1788019503ce88594169cad0a56e07fc0662
 quay.io/crunchtools/postiz@sha256:4ccb6a3591b2910e213939dab82d616d167afaa0e3c34d7f950b8f430bcfd6b8  # :latest
 quay.io/crunchtools/proxy@sha256:60a76a7af2336063a79628827acb34d0493ab57e16b3598dab23611e01bbffcc  # :rollback-latest
 quay.io/crunchtools/proxy@sha256:b431716efe98a2917fffd64c4f73d228046c87973f9dc49a87626c2daa2d5ca8  # :latest
+quay.io/crunchtools/rhel10-bootc-server@sha256:91fb740ab8677a573fff7dc9e23d405e234f07b1593439c84226dacff0320aeb  # booted on gloval
+quay.io/crunchtools/rhel10-bootc-server@sha256:b349c07b837d8d5fcfa42433c15d07f3f294858a7a1c368dc0bc73f9ffdfcd25  # bootc rollback on gloval
 quay.io/crunchtools/rotv@sha256:e23adea95c7e71c8ffbbc1e9be4e16c15660531775b74d2c1fceac1a511fd3a1  # :latest
 quay.io/crunchtools/rotv@sha256:e466018fc439a9beeaaab8b7b19de1fc878bed84d10b0de042dea0e9d944ca11  # :rollback-latest
 quay.io/crunchtools/rt@sha256:08bd6c0c9222142f946156323575d9161ebf725635a4d23667dcbbad5b168362  # :rollback-main

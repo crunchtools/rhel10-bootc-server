@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
-- **Signature backfill** (#47, #64). `signing/backfill.txt` lists the 90
+- **Signature backfill** (#47, #64). `signing/backfill.txt` lists the 93
   `quay.io/crunchtools` digests hosts run or roll back to that promote will
   never sign (`:latest` from before a repo set `sign: true`, `rollback-*`,
   pinned digests), and the `Backfill signatures` workflow signs each once from
