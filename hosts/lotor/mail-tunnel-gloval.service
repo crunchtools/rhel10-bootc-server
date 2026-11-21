@@ -9,6 +9,8 @@ Wants=network-online.target
 # outbound mail through lotor mail. Runs ssh from the pbs image because the
 # host refuses to exec /usr/bin/ssh from systemd units.
 ExecStart=/usr/bin/podman run --rm --name mail-tunnel-gloval --network host \
+    --label PODMAN_SYSTEMD_UNIT=mail-tunnel-gloval.service \
+    --label io.containers.autoupdate=registry \
     -v /etc/mail-tunnel:/k:z --entrypoint /usr/bin/ssh quay.io/crunchtools/pbs:latest \
     -NT -p 22422 -i /k/id_ed25519 \
     -o UserKnownHostsFile=/k/known_hosts -o StrictHostKeyChecking=accept-new \
