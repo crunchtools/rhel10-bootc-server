@@ -1,3 +1,67 @@
+# mt76 kmod overlay (RT#1656, a342). mt7925e on exedore hits kernel BUG
+# list_debug.c:32 in mt7925_mac_add_txs when a station is re-added under
+# traffic, then the card wedges until a power-off. Upstream fixed it in
+# 20b126920a25 ("wifi: mt76: add wcid publish check in mt76_sta_add"; 6.12.y
+# 720f39a9c60f); RHEL 10 does not carry it yet. This stage rebuilds the whole
+# mt76 tree with that one patch against the exact kernel the image keeps, from
+# that kernel's own source RPM, and the final stage installs it to updates/,
+# which depmod prefers over the in-tree modules.
+#
+# It fails the build, loudly, when:
+#   - the patch's bytes are not the ones pinned here, which is this repo's
+#     copy of 20b126920a25 (kmod/mt76/README.md says why it is not a hash of
+#     what git.kernel.org serves);
+#   - the kernel already carries the fix (the patch reverse-applies): RHEL has
+#     caught up, so remove the overlay as kmod/mt76/README.md (REMOVING) lists;
+#   - the patch does not apply: a wireless rebase moved mt76_sta_add, so
+#     rebase the patch or drop the overlay. Until then the weekly errata build
+#     fails too, which is the point: nobody ships an unpatched exedore by
+#     accident.
+#
+# The modules are unsigned. Secure Boot is off on exedore (RT#1628), so the
+# kernel only logs a taint. With Secure Boot on, lockdown would refuse them and
+# modprobe would not fall back to the stock ones: that host would lose mt76
+# Wi-Fi until the overlay is signed or removed.
+FROM registry.redhat.io/rhel10/rhel-bootc AS mt76
+ARG MT76_PATCH=0001-wifi-mt76-add-wcid-publish-check-in-mt76_sta_add.patch
+ARG MT76_PATCH_SHA256=be881c0808ec51568c0a9e24d6eb2ba7791879adf810eeb86f6ddcac35d3c130
+COPY kmod/mt76/${MT76_PATCH} /build/mt76.patch
+COPY scripts/mt76-apply-fix.sh /build/apply-fix.sh
+RUN --mount=type=secret,id=activation_key \
+    --mount=type=secret,id=org_id \
+    --mount=type=bind,source=tests,target=/run/tests,z <<'EOF'
+set -euo pipefail
+echo "${MT76_PATCH_SHA256}  /build/mt76.patch" | sha256sum -c -
+subscription-manager register \
+    --activationkey="$(cat /run/secrets/activation_key)" \
+    --org="$(cat /run/secrets/org_id)"
+trap 'subscription-manager unregister || true; subscription-manager clean || true' EXIT
+# The same newest kernel the final stage's `dnf update -y` installs and keeps;
+# the final stage asserts it got the same one.
+dnf upgrade -y kernel-core
+KVER=$(ls /usr/lib/modules | sort -V | tail -n 1)
+dnf install -y --nodocs "kernel-devel-${KVER}" gcc make elfutils-libelf-devel \
+    git-core cpio xz
+cd /build
+dnf download --source --enablerepo='*-baseos-source-rpms' "kernel-${KVER%.*}"
+rpm2cpio kernel-*.src.rpm | cpio -idm --quiet 'linux-*.tar.xz'
+tar -xJf linux-*.tar.xz --wildcards '*/drivers/net/wireless/mediatek/mt76/*'
+# The guard's own refusals, proven on a fixture before it judges this kernel.
+/run/tests/kmod-mt76-apply.sh /build/apply-fix.sh /build/mt76.patch /run/tests/fixtures/mt76
+TREE=$(echo /build/linux-*/)
+/build/apply-fix.sh /build/mt76.patch "$TREE" "kernel ${KVER}"
+SRC=${TREE}drivers/net/wireless/mediatek/mt76
+make -C "/usr/src/kernels/${KVER}" M="$SRC" -j"$(nproc)" modules
+DEST=/out/lib/modules/${KVER}/updates/mt76
+cd "$SRC"
+# -exec + so a failed install fails find, and the build; \; would not.
+find . -name '*.ko' -exec sh -c 'd=$1; shift; for k; do install -D -m 0644 "$k" "$d/$k" || exit; done' sh "$DEST" {} +
+find "$DEST" -name '*.ko' -exec strip --strip-debug {} +
+test -f "$DEST/mt7925/mt7925e.ko" && test -f "$DEST/mt76.ko"
+find "$DEST" -name '*.ko' | sort
+dnf clean all
+EOF
+
 FROM registry.redhat.io/rhel10/rhel-bootc
 
 # Setup Repositories
@@ -278,6 +342,20 @@ RUN rm -rf /var/run \
 
 # Remove old kernel to satisfy bootc lint (dnf update may pull a newer one)
 RUN cd /usr/lib/modules && ls | sort -V | head -n -1 | xargs -I{} rm -rf {}
+
+# The mt76 overlay (RT#1656), built above. It lands under the kernel version
+# the builder resolved, so a kernel that moved between the stages leaves two
+# directories here and fails the build instead of shipping modules no kernel
+# loads. tests/kmod-mt76.sh proves modprobe resolves mt7925e and its stack to
+# the overlay, built from patched source, and that no initramfs copy of the
+# stock driver loads first.
+COPY --from=mt76 /out/lib/modules/ /usr/lib/modules/
+RUN set -eu; \
+    kvers=$(ls /usr/lib/modules); \
+    [ "$(echo "$kvers" | wc -l)" = 1 ] || { echo "mt76 overlay and image kernel differ: $kvers" >&2; exit 1; }; \
+    depmod -a "$kvers"
+RUN --mount=type=bind,source=tests,target=/run/tests,z \
+    /run/tests/kmod-mt76.sh
 
 # Final lint step to prevent easy-to-catch issues at build time
 RUN bootc container lint

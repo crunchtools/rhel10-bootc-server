@@ -11,6 +11,40 @@ All notable changes to this project are documented here. The format follows
   trimmed firewall and tunnel unit that mail.crunchtools.com runs on the
   Nanode, plus how to put the disk.yml raw on a Linode: it is 10 GiB, over
   Linode's 6 GiB image cap, so it is written straight onto a raw disk.
+- **Signature backfill** (#47, #64). `signing/backfill.txt` lists the 93
+  `quay.io/crunchtools` digests hosts run or roll back to that promote will
+  never sign (`:latest` from before a repo set `sign: true`, `rollback-*`,
+  pinned digests), and the `Backfill signatures` workflow signs each once from
+  main in the `cosign-signing` environment, skipping any that already verify.
+
+### Changed
+- Gatehouse triage receives the review job's result (`review_result`), so a PR whose review died before posting anything is held instead of passing.
+- The container release runs constitution v1.51.0's `container-release.yml`
+  (was v1.46.0) and grants it `issues: write`, so a failed weekly rebuild opens
+  an issue instead of only emailing whoever last touched the cron line. A `v*`
+  promote now also refuses an image whose `version` label names a different
+  release of this repo; this image sets none and inherits rhel-bootc's, which
+  is not compared.
+
+### Fixed
+- **mt76 overlay review notes** (#60). A failed `install` of an overlay module
+  now fails the build: `find -exec … \;` had exited 0 regardless. The
+  "already carries 20b126920a25" refusal points at a REMOVING list in
+  `kmod/mt76/README.md` that names every piece of the overlay, and the patch
+  pin is described as this repo's copy of 20b126920a25 rather than a hash of
+  what git.kernel.org serves.
+
+## [1.6.0] - 2026-11-18
+
+### Added
+- **mt76 kmod overlay with upstream 20b126920a25** (RT#1656). mt7925e hit
+  kernel BUG list_debug.c:32 in `mt7925_mac_add_txs` when a station was
+  re-added under traffic, and the card wedged until a power-off. A builder
+  stage rebuilds the mt76 tree from the image kernel's source RPM with the
+  upstream fix (pinned by sha256) and installs it to `updates/`. The build
+  fails if the kernel already has the fix, if the patch stops applying, or if
+  the kernel moved between stages. `tests/kmod-mt76.sh` and the boot gate
+  check that `modinfo mt7925e` resolves to the overlay.
 - **Raw disk images from a signed digest** (RT#1638). `disk.yml` is dispatched
   with a digest, refuses one the bootc key did not sign, and builds a
   bootc-image-builder raw disk with root keyed from
