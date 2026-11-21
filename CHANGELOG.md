@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Signature backfill** (#47, #64). `signing/backfill.txt` lists the 93
+  `quay.io/crunchtools` digests hosts run or roll back to that promote will
+  never sign (`:latest` from before a repo set `sign: true`, `rollback-*`,
+  pinned digests), and the `Backfill signatures` workflow signs each once from
+  main in the `cosign-signing` environment, skipping any that already verify.
+
 ### Changed
 - Gatehouse triage receives the review job's result (`review_result`), so a PR whose review died before posting anything is held instead of passing.
 - The container release runs constitution v1.51.0's `container-release.yml`
