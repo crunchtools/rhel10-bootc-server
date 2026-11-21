@@ -1,0 +1,100 @@
+# One-time signature backfill (#47, #64). Every line is a digest a host runs or
+# may roll back to, which promote will never sign: a :latest from before its
+# repository set `sign: true`, a rollback-* tag, or a pinned digest. Merging a
+# change to this file is the approval to sign what it lists; the Backfill
+# signatures workflow signs each line once, in the cosign-signing environment,
+# and skips a digest that already verifies. The comment after each digest
+# names the tags it carried on 2026-11-21.
+#
+# Only quay.io/crunchtools/<repo>@sha256:<64 hex> lines are signed. Never list
+# a tag: a tag can move between review and signing.
+quay.io/crunchtools/acquacotta@sha256:05e4e7e2f8424aa317e908412755e7af50ccf356f4e7ef8ed98f71b13fb31605  # :rollback-latest
+quay.io/crunchtools/acquacotta@sha256:168b9673a5bd42c2937db2fc6bcea1869caf9801b3e5d00860e064ee9ae7b59c  # :latest
+quay.io/crunchtools/expressvpn@sha256:0c5a7ca56bde2456751a3530f1955ac7c9b24c64e3f75119a5b869e015460380  # :rollback-latest
+quay.io/crunchtools/expressvpn@sha256:4386da1423eda2f48343e9d2e69a87e54957f36a79186c37df1098929e05e78e  # :latest
+quay.io/crunchtools/google-workspace-mcp@sha256:b7a54ef65050b91542d044315550b36867888d1aafd8b9ce03774a87506963e9  # :rollback-latest
+quay.io/crunchtools/google-workspace-mcp@sha256:f9b0d15e178bd23ee0bef7d84dd02b120d03cba4074c3f7c3c54e1998e1ba11b  # :latest
+quay.io/crunchtools/hermes@sha256:ba9ad9ef70acb5bafb8ef3f89951b030237658bbb9a6ee23cef0097548d5978b  # :latest
+quay.io/crunchtools/hermes@sha256:de6ab1be5b49293df8cfafbadc686d9fad89e13611e19d536b3bad7efb1fe254  # :rollback-latest
+quay.io/crunchtools/images-rotv@sha256:16ea5747b5f1b9686e30ceca4290d610e2216ac90140eeb786aa718a8c7f55a2  # :latest
+quay.io/crunchtools/images-rotv@sha256:7180f985031494bc44069abf32b1b8057ce99ea3f3a9456b9e3f8c406b6e8366  # :rollback-latest
+quay.io/crunchtools/josui@sha256:352d11ff164414cb37de460c4a69ccd8b245bae49a77ca515cba288dc5ce8c13  # :rollback-latest
+quay.io/crunchtools/josui@sha256:48abce94f710343b958d7264a072fac005ba8321b08b21a92c89b5161cb4fa51  # :rollback-main
+quay.io/crunchtools/josui@sha256:5f92a31bf4792ca226906b47be05a421b83de99a1e9b79c58bbfb02f1d01de7a  # :latest
+quay.io/crunchtools/josui@sha256:fda0793bb765c8fb5d7ac00ede37c9b49088eeebb80a3c12ce94ebcaf8d8e6bf  # :main
+quay.io/crunchtools/kill-the-newsletter@sha256:69023d91c7061d1691cca2a9095d940a990635a091cfb88c260f06735f312945  # :latest
+quay.io/crunchtools/kill-the-newsletter@sha256:db0c9bc4fbf3fcfa185a6244d125bd7787a98abbed6d69ddc5fa9d8771cbbd79  # :rollback-latest
+quay.io/crunchtools/mcp-atlassian@sha256:406fbba5e72133f394db7fa67af0173b9a1fc216ed869fa8b0fdbfa1dea36955  # :rollback-latest
+quay.io/crunchtools/mcp-atlassian@sha256:e1535e513401a9925246ec279881bef047e26882c302371e23d92dff88f88dd4  # :latest
+quay.io/crunchtools/mcp-cloudflare@sha256:2018dad1f44e58679c7d43df9c97e3f9a35a0335bb12f397c2327f064e59f78b  # :rollback-latest
+quay.io/crunchtools/mcp-cloudflare@sha256:ccef75a709b00e587c58cf2cf5942672effa539ff27a893286d51832d6668bea  # :latest
+quay.io/crunchtools/mcp-feed-reader@sha256:6e1c5e49938c648aaa52817c177dcc47cef6ab3dd1e49dfc71e42839462994a6  # :rollback-latest
+quay.io/crunchtools/mcp-feed-reader@sha256:93f0107d833c912f25372c7082ff7b66f42bd92bd0e6719a5b14ee538c8d57cd  # :latest
+quay.io/crunchtools/mcp-gemini@sha256:729c037e7063b1a19840ac8d495a8caa065e35f5959adb2f8e8fbb66e2d56c44  # :rollback-latest
+quay.io/crunchtools/mcp-gemini@sha256:d2616289d1fe318b72ef3e439a660bd420ed9e9c1c6ea5803c81625e240a2f86  # :latest
+quay.io/crunchtools/mcp-github@sha256:774c3e342f97f1455331a9caef37d9468633e72e3b78b8303e0db80f9e99c3c4  # :latest
+quay.io/crunchtools/mcp-github@sha256:f7624c7775a3cd54d72f1bba1a8011f067f69e0ce317c2ca9aa27a06b2bbd5d4  # :rollback-latest
+quay.io/crunchtools/mcp-gitlab@sha256:86dabf6b3fa79d815265a8fdd5ad1040f18e3507ad036749c56942e35167b873  # :rollback-latest
+quay.io/crunchtools/mcp-gitlab@sha256:deb6790fbe08c24262c306481779a8ce934f68b5e9fefe67a15b8f3c66bb57d2  # :latest
+quay.io/crunchtools/mcp-google-search-console@sha256:1f57014720999ec5fa2f714c993a3633945200e1e5c0e76e4787d5a6be0ba97c  # :rollback-latest
+quay.io/crunchtools/mcp-google-search-console@sha256:8225990f3cdad593ca0d3ac3805ba908aa7164323ffb4204ce65c54978023fdd  # :latest
+quay.io/crunchtools/mcp-mediawiki@sha256:6610331c2d05e8598afe327aa92d8d8f7764459c2bfafac5ad33a7d9a53e4a61  # :latest
+quay.io/crunchtools/mcp-mediawiki@sha256:db68ac01a9a5108b9bb7cbb065ca8b3491554eab5ede822e6d92567c0a9894cc  # :rollback-latest
+quay.io/crunchtools/mcp-metsuke@sha256:78ff5b47e5ec359111def59dd9c590fd4c59bb2d8fc688c3d5c73fe7c6e13cbe  # :rollback-latest
+quay.io/crunchtools/mcp-metsuke@sha256:a54cb3acad0c232174b73085cf2d90e50c0e09e42bfca7fec70616c1b02762c2  # :latest
+quay.io/crunchtools/mcp-nagios@sha256:2a20f03dc02be443e3deacc729cb36443591398bd08670dd492e241b69db0653  # :latest
+quay.io/crunchtools/mcp-nagios@sha256:839d2f414fa0d7361a5d39da494d53cb631a145a1f73a336744e1c6a59e50784  # :rollback-latest
+quay.io/crunchtools/mcp-notebooklm@sha256:e80b7e2483af6f17f5773aac5ed81da94e034e705daca274ca0d7351b75d1452  # :latest
+quay.io/crunchtools/mcp-notebooklm@sha256:ff5a869e90582a25313dc77a26ca08873da28025ef8f0cd8262fab261c4180b9  # :rollback-latest
+quay.io/crunchtools/mcp-pcloud@sha256:6a9392a1cd7b8430448cf16b62fb85ea452705dd30c559e65153e5b72056c98a  # :rollback-latest
+quay.io/crunchtools/mcp-pcloud@sha256:bf3d3f533d922674da36d84ba7d4712b216c1659d0e1ba3b0cc42f255fb9c960  # :latest
+quay.io/crunchtools/mcp-podman@sha256:162862e962693d44e6e08de7a9f9fa36082e7f2c2f1a44fd8526feac78592d1a  # :rollback-latest
+quay.io/crunchtools/mcp-podman@sha256:a4f47aa1f75a701fb5099acee741dd5413308f3db70675a063c282b85a8247e1  # :latest
+quay.io/crunchtools/mcp-request-tracker@sha256:9b910264bdab8d7bfd7a2c0d0441dfa91face42f5fdab2f6851c554f78934615  # :rollback-latest
+quay.io/crunchtools/mcp-request-tracker@sha256:aea050b9af7a50cf16326f1973812d8524cc1244c93cc010e752260e993ae0c6  # :latest
+quay.io/crunchtools/mcp-rhhi@sha256:9b07f5d2a4d3918e9b70132d220e3725bf19add78986419eab2d7bcf53d83d29  # :rollback-latest
+quay.io/crunchtools/mcp-rhhi@sha256:d7d2661b7100dc25fc68b2d18b038fff6189813a326829dc48ffbb0ea0519da5  # :latest
+quay.io/crunchtools/mcp-slack@sha256:5d12df31f93abe297f7853cf43913071637544a8f1efaca40fdcae9200ea4302  # :latest
+quay.io/crunchtools/mcp-slack@sha256:947d5376ba5a15fcf7947b1add3e58647638f47749daf1bf26382c1275f8b643  # :rollback-latest
+quay.io/crunchtools/mcp-syslog@sha256:268b63159d93c2de0571a4e2ad251e2e7775aaef7b8a094a4e31481d1933428c  # :latest
+quay.io/crunchtools/mcp-syslog@sha256:c50ee370aad431c7a8cf306d0ce9e5919248c111d3f89fc1636f84d5cc67d822  # :rollback-latest
+quay.io/crunchtools/mcp-systemd@sha256:4204d62a0abc9b016c5bf78875bf9d85e8199938e088518af979befbe8deefd4  # :latest
+quay.io/crunchtools/mcp-systemd@sha256:a75c8f96a45b33c695c8a5dd3bd4bbe99853b5e425f1902cc48498fe53980eda  # :rollback-latest
+quay.io/crunchtools/mcp-trove@sha256:759316a9f44ffc4648a2a4f48ca45c67f11ef78ad21bc0b829047a14731ec5d8  # :rollback-latest
+quay.io/crunchtools/mcp-trove@sha256:d14e3cdec73594f619dbb881e2d061d2ec7285d7be7f3f0267c47b44012da9ec  # :latest
+quay.io/crunchtools/mcp-wordpress@sha256:2f49ffc271df8cc89ce57523dc3e21d4650474a6e98fb5f6124d1736e8732f70  # :latest
+quay.io/crunchtools/mcp-wordpress@sha256:b7adc1903e4859d7deac292ae27a9e68a62be1868646b649a1a4aec54840bda5  # :rollback-latest
+quay.io/crunchtools/mcp-workboard@sha256:0e77db6aede7aee55ae5e5283a273549bb04dc48f786cced3be60d93267b76d5  # :rollback-latest
+quay.io/crunchtools/mcp-workboard@sha256:b8e092b1d1cc3df8967cd52fe4333423af8fc2fafae61259822a28cb54f41d9f  # :latest
+quay.io/crunchtools/memory@sha256:9fe81d0be61e53256a8cf243e3d68a8355cf073b0c5b103dacb175d2a2bcbdbc  # :latest
+quay.io/crunchtools/memory@sha256:e0d0cbc7bc398862c257174f170c987bd542695bfe12afda852ee468f0cbe407  # :rollback-latest pinned on a host
+quay.io/crunchtools/mundo-de-palabras@sha256:7ebe217c985a60c187bc04d1d4851b3f1fee3a21add854937119e8ca7e547670  # :latest
+quay.io/crunchtools/mundo-de-palabras@sha256:fd00ff33cd6b8932201260ad3851cb62f9e864115c93ff1c87c474f2259ee2c1  # :rollback-latest
+quay.io/crunchtools/nagios-agent@sha256:d2221a7cfcb48e58a4306180e033a43f0424d9325b056e162689386dd22a2b9a  # :latest
+quay.io/crunchtools/nagios-agent@sha256:f1bee99727d02d0de0877dd3e99e16566f07bf7066c762fd1d8721e786ed6942  # :rollback-latest
+quay.io/crunchtools/nagios@sha256:b2f8c971deca57a7d2a5b2680f25a041c3a5a28c69f1e8325b18b3e48d00bd4c  # :rollback-latest
+quay.io/crunchtools/nagios@sha256:ca5ad906e0c38ef0b97ba295d0f6ae3bfe6c6d468c1b76f7495a5b5c94cb1e6d  # :latest
+quay.io/crunchtools/openbao@sha256:3f55ba6d1a90f424bb5e4042eeb8c3bdbf4210f0f5ff9a99ef5c5a4b6803a006  # pinned on a host
+quay.io/crunchtools/openbao@sha256:937400ccca723707a83fa1f5305fab90ee5b36174e3d5c5397e99b3b287f7cd9  # :rollback-latest
+quay.io/crunchtools/openbao@sha256:e4f8db545e11dde2476a2369ca86e7b3925d78469b687832a8e878176e3b2a18  # :latest pinned on a host
+quay.io/crunchtools/openclaw@sha256:432f8a6c44957649b2950794afa7b0eec1ff966d823e34610f86ee3704f3ebf7  # pinned on a host
+quay.io/crunchtools/openclaw@sha256:78f87e3989c9aa6b22b2bec38cf5869c18d09c3977fd2145364b6065945b4a7b  # :rollback-latest
+quay.io/crunchtools/openclaw@sha256:f8e781c4264b15babc8cae35d0caf8de4657cd969ce4ed2e0efd49e71af858b2  # :latest
+quay.io/crunchtools/postiz@sha256:2275f5ff0d1788019503ce88594169cad0a56e07fc0662734bc322873940030d  # :rollback-latest
+quay.io/crunchtools/postiz@sha256:4ccb6a3591b2910e213939dab82d616d167afaa0e3c34d7f950b8f430bcfd6b8  # :latest
+quay.io/crunchtools/proxy@sha256:60a76a7af2336063a79628827acb34d0493ab57e16b3598dab23611e01bbffcc  # :rollback-latest
+quay.io/crunchtools/proxy@sha256:b431716efe98a2917fffd64c4f73d228046c87973f9dc49a87626c2daa2d5ca8  # :latest
+quay.io/crunchtools/rotv@sha256:e23adea95c7e71c8ffbbc1e9be4e16c15660531775b74d2c1fceac1a511fd3a1  # :latest
+quay.io/crunchtools/rotv@sha256:e466018fc439a9beeaaab8b7b19de1fc878bed84d10b0de042dea0e9d944ca11  # :rollback-latest
+quay.io/crunchtools/rt@sha256:08bd6c0c9222142f946156323575d9161ebf725635a4d23667dcbbad5b168362  # :rollback-main
+quay.io/crunchtools/rt@sha256:d8d5fc8946d5dd530a30d7730cf927fc668b06638c162be34e60aa669f1fb122  # :rollback-latest
+quay.io/crunchtools/rt@sha256:dfb6d3e229d662356ccb6d01964f8e5c6763837205a03b430947b24f9ed45aec  # :latest
+quay.io/crunchtools/syslog@sha256:384152f1bad5727d655c49d54f60573d852a563a3b4a644a169e0067a1a7a672  # :latest
+quay.io/crunchtools/syslog@sha256:a74ea6ee67c4f2021d068ea2908270afc072a50f4ffdb81608d4f0a946c2e8a2  # :rollback-latest
+quay.io/crunchtools/tig@sha256:199d71123848aee14c64cc1aa318c7e4d9c1141ca8486edb4e84095057f028a6  # :latest
+quay.io/crunchtools/tig@sha256:75c08d2b3a11d0e73462810a3700cfc897443acdebd2df5afcc3c7767514e8d4  # :rollback-latest
+quay.io/crunchtools/trentina-demo@sha256:1d4c7ab58ea681b2999dc3df50efac7490b20a364dc97247611d72c7aa34b427  # :latest
+quay.io/crunchtools/trentina-demo@sha256:6d375efdec7ec6873d5c01e2d653bd4c345be7806838e5c7217766b2aff1fa99  # :rollback-main
+quay.io/crunchtools/trentina@sha256:74e944fc40cf454cad4a766aeb6f9b127e4aba923b79c1cff5a8e18d8370b698  # :latest
+quay.io/crunchtools/trentina@sha256:b742944996ae81bee7b6316e1b4cd81723b86053a84cc82c6747945a7b666ec5  # :6.23.1
+quay.io/crunchtools/trentina@sha256:f2634452ffa60f700101145b1b06f282e190bf03f387a4605bb1e39c3c87b606  # :6.24.3
