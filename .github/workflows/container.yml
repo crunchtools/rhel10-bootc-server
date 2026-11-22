@@ -9,11 +9,11 @@ name: Container
 
 on:
   pull_request:
-    paths: ['Containerfile', 'etc/**', 'kmod/**', 'scripts/**', 'tests/**', '.github/workflows/container.yml']
+    paths: ['Containerfile', 'etc/**', 'scripts/**', 'tests/**', '.github/workflows/container.yml']
   push:
     branches: [main]
     tags: ["v*"]
-    paths: ['Containerfile', 'etc/**', 'kmod/**', 'scripts/**', 'tests/**', '.github/workflows/container.yml']
+    paths: ['Containerfile', 'etc/**', 'scripts/**', 'tests/**', '.github/workflows/container.yml']
   schedule:
     - cron: "47 5 * * 1"   # weekly: base-image errata, gated like any build
   workflow_dispatch:
@@ -34,13 +34,8 @@ jobs:
       redhat-registry: true
       rhsm: true
       boot: command
-      # The mt76 overlay (RT#1656): modprobe in the built image must resolve
-      # mt7925e to updates/, not the stock driver.
       boot-command: |
         podman run --rm "$IMAGE" bootc container lint
-        podman run --rm "$IMAGE" sh -c 'modinfo -k "$(ls /usr/lib/modules)" mt7925e mt76' | tee modinfo.txt
-        grep -q '^filename: *.*/updates/mt76/mt7925/mt7925e.ko$' modinfo.txt
-        grep -q '^filename: *.*/updates/mt76/mt76.ko$' modinfo.txt
       boot-timeout: 600
       # Promote signs the digest before any tag moves (#47), so a tag never
       # points at an image hosts would refuse, and a pull request's candidate is

@@ -31,6 +31,15 @@ All notable changes to this project are documented here. The format follows
   release of this repo; this image sets none and inherits rhel-bootc's, which
   is not compared.
 
+### Removed
+- **mt76 kmod overlay** (a912, #70). RHEL's kernel 6.12.0-264.17.1.el10_3
+  carries 20b126920a25, so the overlay's guard failed every Container build
+  from 11-20 on, as designed. Every piece `kmod/mt76/README.md` listed under
+  REMOVING is gone: the builder stage, `kmod/mt76/`,
+  `scripts/mt76-apply-fix.sh`, the kmod tests and fixture, the boot gate's
+  `modinfo` checks and the constitution paragraph (v1.5.0). exedore's
+  mt7925e now runs the stock, fixed driver.
+
 ### Fixed
 - **mt76 overlay review notes** (#60). A failed `install` of an overlay module
   now fails the build: `find -exec … \;` had exited 0 regardless. The
