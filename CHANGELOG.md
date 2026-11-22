@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Releases tagged by the Ashigaru app** (a965). `release.yml` opens a
+  release pull request as the app on workflow_dispatch and tags it on merge
+  through Ashigaru's `release-tag.yml@v5`; the cosign release-tag ruleset
+  refuses `v*.*.*` tags from anyone else. README.md's "How to release" has the
+  steps.
 - **Lotor's mail-only host config** (a116, RT#1638). `hosts/lotor/` holds the
   trimmed firewall and tunnel unit that mail.crunchtools.com runs on the
   Nanode, plus how to put the disk.yml raw on a Linode: it is 10 GiB, over
