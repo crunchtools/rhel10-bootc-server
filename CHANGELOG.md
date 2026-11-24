@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-24
+
 ### Added
 - **KVM host packages** (RT #1664): `qemu-kvm`, `qemu-img`, `virtiofsd` and
   `zram-generator`, for Exedore's disposable GitHub Actions runner VMs. Nothing
