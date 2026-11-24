@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **KVM host packages** (RT #1664): `qemu-kvm`, `qemu-img`, `virtiofsd` and
+  `zram-generator`, for Exedore's disposable GitHub Actions runner VMs. Nothing
+  is enabled: no libvirt daemon, and `zram-generator` without its defaults
+  package, so a host gets zram swap only from its own
+  `/etc/systemd/zram-generator.conf`. Gloval and Lotor carry the packages
+  unused; one image still serves every host.
 - **Releases tagged by the Ashigaru app** (a965). `release.yml` opens a
   release pull request as the app on workflow_dispatch and tags it on merge
   through Ashigaru's `release-tag.yml@v5`; the cosign release-tag ruleset

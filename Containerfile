@@ -35,7 +35,11 @@ dnf install -y --nodocs \
     sysstat \
     systemd-oomd \
     NetworkManager-wifi \
-    wpa_supplicant
+    wpa_supplicant \
+    qemu-kvm \
+    qemu-img \
+    virtiofsd \
+    zram-generator
 dnf clean all
 rm -rf /var/cache/dnf /var/cache/yum
 EOF
