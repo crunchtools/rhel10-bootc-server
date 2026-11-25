@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **rclone comes from upstream 1.76.0** (a1654). EPEL's rclone 1.75.2 links
+  `github.com/andybalholm/brotli` v1.2.2 (GO-2026-6888, critical, in CISA's
+  KEV), which failed the image job's container-scan, so 1.8.1 has no image.
+  The upstream rpm is pinned by the sha256 in the release's signed
+  SHA256SUMS and links brotli v1.2.7. `/usr/bin/rclone`, which nagios-agent
+  bind-mounts, stays where it was.
+
 ## [1.8.1] - 2026-11-25
 
 ### Fixed
