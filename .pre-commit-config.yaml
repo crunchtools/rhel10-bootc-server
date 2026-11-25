@@ -21,7 +21,7 @@ repos:
   # sdlc skips its python stack here (pyproject.toml), so ruff runs from its own
   # hook, at the version the sdlc image bakes. Gourmand's IF001 requires it.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.1
+    rev: 38bfb07c0c64c304f47eb52090f8288150c77730  # frozen: v0.17.1
     hooks:
       - id: ruff-check
         args: [--fix]
