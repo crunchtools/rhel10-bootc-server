@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-11-25
+
+### Fixed
+- **The Containerfile parses under hadolint** (a1654). sdlc's image job
+  refuses to build a Containerfile hadolint cannot parse, so 1.8.0 was tagged
+  and its GitHub Release published, but no image was built or promoted. The
+  bind mounts drop buildah's `,z` relabel option, which hadolint's grammar
+  lacks, and the policy heredoc is followed by a blank line. 1.8.1 is the
+  first image with the namespace-wide signature policy.
+
 ## [1.8.0] - 2026-11-25
 
 ### Fixed
