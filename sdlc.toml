@@ -14,11 +14,10 @@ kind = "command"
 argv = ["python3", "tests/signing-key.py"]
 
 # disk.yml's pull-request job: its signature boundary refuses malformed and
-# unsigned digests and passes a signed one. Reads quay, so it needs the network.
+# unsigned digests and passes a signed one, against a loopback fixture (#76).
 [tool.sdlc.ci.digest-gate]
 kind = "command"
 argv = ["bash", "tests/digest-gate.sh"]
-network = true
 
 [tool.sdlc.image]
 # Written by crunchtools/sdlc's scripts/convert_repo.py: moved from the workflows.

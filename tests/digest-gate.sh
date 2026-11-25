@@ -7,8 +7,9 @@
 #                                       from a digest this refuses.
 #   digest-gate.sh                      self-test: a malformed digest and an
 #                                       unsigned one are refused, a signed one
-#                                       passes. 1.2.0 predates signing (#44),
-#                                       so it stays unsigned for good.
+#                                       passes. Offline (#76): the images live
+#                                       in tests/oci-registry.py on loopback,
+#                                       signed by a key made for the run.
 set -euo pipefail
 
 gate() {
@@ -25,10 +26,26 @@ if [ $# -gt 0 ]; then
     exit
 fi
 
-repo=quay.io/crunchtools/rhel10-bootc-server
-key=etc/pki/sigstore/crunchtools-bootc.pub
+work=$(mktemp -d)
+python3 tests/oci-registry.py "$work/port" &
+registry=$!
+trap 'kill "$registry" 2>/dev/null; rm -rf "$work"' EXIT
+for _ in $(seq 50); do [ -s "$work/port" ] && break; sleep 0.1; done
+[ -s "$work/port" ] || { echo "::error::the fixture registry did not start" >&2; exit 1; }
+
+repo=127.0.0.1:$(cat "$work/port")/rhel10-bootc-server
+key=$work/cosign.pub
+export COSIGN_PASSWORD=
+(cd "$work" && cosign generate-key-pair >/dev/null 2>&1)
+digest_of() {
+    skopeo inspect --tls-verify=false --no-tags --format '{{.Digest}}' "docker://$repo:$1"
+}
+signed=$(digest_of signed)
+cosign sign --yes --tlog-upload=false --key "$work/cosign.key" "$repo@$signed" >/dev/null 2>&1 \
+    || { echo "::error::could not sign the fixture image" >&2; exit 1; }
+
 refuse() {
-    if gate "$repo" "$1" "$key" >/dev/null 2>&1; then
+    if gate "$repo" "$1" "${3:-$key}" >/dev/null 2>&1; then
         echo "::error::accepted a digest it must refuse ($2): '$1'" >&2; exit 1
     fi
     echo "refused as expected: $2"
@@ -37,6 +54,7 @@ refuse "" "empty"
 refuse "latest" "a tag"
 refuse "sha256:abc" "short digest"
 refuse "sha256:$(printf 'A%.0s' {1..64})" "uppercase hex"
-refuse "$(skopeo inspect --no-tags --format '{{.Digest}}' "docker://$repo:1.2.0")" "unsigned 1.2.0"
-gate "$repo" "$(skopeo inspect --no-tags --format '{{.Digest}}' "docker://$repo:latest")" "$key"
-echo "accepted the signed :latest"
+refuse "$(digest_of unsigned)" "unsigned image"
+refuse "$signed" "signed by another key" etc/pki/sigstore/crunchtools-bootc.pub
+gate "$repo" "$signed" "$key" >/dev/null
+echo "accepted the signed image"
