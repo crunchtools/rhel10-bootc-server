@@ -19,6 +19,17 @@ All notable changes to this project are documented here. The format follows
   Re-run `pre-commit install` to wire the new pre-merge-commit hook.
 
 ### Changed
+- **Signature policy covers all of `quay.io/crunchtools`** (#47). The two
+  scoped `rhel10-bootc-*` entries become one namespace entry, so a stolen Quay
+  token can no longer swap a service image that `podman auto-update` pulls
+  nightly. Hosts refuse every unsigned `quay.io/crunchtools` image from the
+  first boot of this image, so it ships only once every image in use is signed
+  (a1028 signed the last ones Exedore and Gloval pull). `sdlc` and
+  `sdlc-bootstrap` are the two exceptions: their releases carry sdlc's own key,
+  not the fleet key, so their scopes accept either key
+  (`etc/pki/sigstore/crunchtools-sdlc.pub`). `tests/sigpolicy.sh` fails the
+  build if any other `quay.io/crunchtools/<repo>` scope in `policy.json` or
+  `registries.d` would exempt a repository.
 - **digest-gate self-test runs offline** (#76, a1372). `tests/digest-gate.sh`
   no longer reads quay.io: it serves two fixture images from
   `tests/oci-registry.py` on loopback, signs one with a key made for the run,
@@ -98,15 +109,6 @@ All notable changes to this project are documented here. The format follows
   It builds only when dispatched from `main` or a `v*` tag, since the root key
   comes from the checked-out ref. The signature gate is `tests/digest-gate.sh`,
   whose self-test refuses malformed and unsigned digests on every pull request.
-
-### Changed
-- **Signature policy covers all of `quay.io/crunchtools`** (#47). The two
-  scoped `rhel10-bootc-*` entries become one namespace entry, so a stolen Quay
-  token can no longer swap a service image that `podman auto-update` pulls
-  nightly. Hosts refuse every unsigned `quay.io/crunchtools` image from the
-  first boot of this image, so it ships only once every image in use is signed.
-  `tests/sigpolicy.sh` fails the build if any `quay.io/crunchtools/<repo>`
-  scope in `policy.json` or `registries.d` would exempt one repository.
 
 ## [1.5.0] - 2026-11-18
 

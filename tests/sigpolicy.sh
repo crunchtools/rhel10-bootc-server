@@ -14,17 +14,24 @@
 set -euo pipefail
 
 KEY=/etc/pki/sigstore/crunchtools-bootc.pub
+SDLC_KEY=/etc/pki/sigstore/crunchtools-sdlc.pub
 
 check() {
-    python3 -I - "$1" "$2" "$KEY" <<'PY'
+    python3 -I - "$1" "$2" "$KEY" "$SDLC_KEY" <<'PY'
 import json, os, sys
-policy_path, regd, key = sys.argv[1:]
+policy_path, regd, key, sdlc_key = sys.argv[1:]
 with open(policy_path) as f:
     docker = json.load(f).get("transports", {}).get("docker", {})
 want = [{"type": "sigstoreSigned", "keyPath": key,
          "signedIdentity": {"type": "matchRepository"}}]
 assert docker.get("quay.io/crunchtools") == want, docker.get("quay.io/crunchtools")
-extra = [s for s in docker if s.startswith("quay.io/crunchtools/")]
+# sdlc's two repositories take sdlc's key as well; nothing else may differ.
+sdlc = [{"type": "sigstoreSigned", "keyPaths": [sdlc_key, key],
+         "signedIdentity": {"type": "matchRepository"}}]
+for repo in ("sdlc", "sdlc-bootstrap"):
+    assert docker.get("quay.io/crunchtools/" + repo) == sdlc, docker.get("quay.io/crunchtools/" + repo)
+extra = [s for s in docker if s.startswith("quay.io/crunchtools/")
+         and s not in ("quay.io/crunchtools/sdlc", "quay.io/crunchtools/sdlc-bootstrap")]
 assert not extra, "scopes shadow the namespace rule: %s" % extra
 ns, shadow = False, []
 for name in sorted(os.listdir(regd)):
@@ -49,7 +56,11 @@ fi
 W=$(mktemp -d)
 trap 'rm -rf "$W"' EXIT
 mkdir "$W/regd" "$W/bad"
-good='{"default":[{"type":"insecureAcceptAnything"}],"transports":{"docker":{"quay.io/crunchtools":[{"type":"sigstoreSigned","keyPath":"'$KEY'","signedIdentity":{"type":"matchRepository"}}]}}}'
+good=$(python3 -I -c 'import json,sys; k,sk=sys.argv[1:]
+ns=[{"type":"sigstoreSigned","keyPath":k,"signedIdentity":{"type":"matchRepository"}}]
+sd=[{"type":"sigstoreSigned","keyPaths":[sk,k],"signedIdentity":{"type":"matchRepository"}}]
+d={"quay.io/crunchtools":ns,"quay.io/crunchtools/sdlc":sd,"quay.io/crunchtools/sdlc-bootstrap":sd}
+print(json.dumps({"default":[{"type":"insecureAcceptAnything"}],"transports":{"docker":d}}))' "$KEY" "$SDLC_KEY")
 echo "$good" > "$W/good.json"
 printf 'docker:\n  quay.io/crunchtools:\n    use-sigstore-attachments: true\n' > "$W/regd/a.yaml"
 check "$W/good.json" "$W/regd" || { echo "FAIL: a correct policy was refused" >&2; exit 1; }
@@ -62,6 +73,8 @@ refuse() {
 }
 python3 -I -c 'import json,sys; p=json.loads(sys.argv[1]); p["transports"]["docker"]["quay.io/crunchtools/x"]=[{"type":"insecureAcceptAnything"}]; print(json.dumps(p))' "$good" > "$W/shadow.json"
 refuse "$W/shadow.json" "$W/regd" "a shadowing policy scope"
+python3 -I -c 'import json,sys; p=json.loads(sys.argv[1]); p["transports"]["docker"]["quay.io/crunchtools/sdlc"]=[{"type":"insecureAcceptAnything"}]; print(json.dumps(p))' "$good" > "$W/sdlc-open.json"
+refuse "$W/sdlc-open.json" "$W/regd" "an sdlc scope that accepts anything"
 sed 's/matchRepository/matchExact/' "$W/good.json" > "$W/exact.json"
 refuse "$W/exact.json" "$W/regd" "a matchExact identity"
 printf 'docker:\n  quay.io/crunchtools/x:\n    use-sigstore-attachments: false\n' > "$W/regd/b.yaml"

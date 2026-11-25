@@ -66,12 +66,15 @@ COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/conta
 # ship its policy in /etc or only in /usr/share (containers-common 6); the
 # merged file goes to /etc, which outranks both.
 COPY etc/pki/sigstore/crunchtools-bootc.pub /etc/pki/sigstore/crunchtools-bootc.pub
+COPY etc/pki/sigstore/crunchtools-sdlc.pub /etc/pki/sigstore/crunchtools-sdlc.pub
 COPY etc/containers/registries.d/crunchtools-bootc.yaml /etc/containers/registries.d/crunchtools-bootc.yaml
 RUN python3 -I - <<'EOF'
 import json, os
 key = "/etc/pki/sigstore/crunchtools-bootc.pub"
-with open(key) as f:
-    assert f.read().startswith("-----BEGIN PUBLIC KEY-----"), key + " is not a PEM public key"
+sdlc_key = "/etc/pki/sigstore/crunchtools-sdlc.pub"
+for k in (key, sdlc_key):
+    with open(k) as f:
+        assert f.read().startswith("-----BEGIN PUBLIC KEY-----"), k + " is not a PEM public key"
 src = next((p for p in ("/etc/containers/policy.json", "/usr/share/containers/policy.json")
             if os.path.exists(p)), None)
 assert src, "the base ships no containers policy.json to merge into"
@@ -87,9 +90,18 @@ docker["quay.io/crunchtools"] = [{
     "keyPath": key,
     "signedIdentity": {"type": "matchRepository"},
 }]
-# Only that scope changes: the default and every entry the base shipped
+# sdlc signs its own releases with sdlc's key (bin/sdlc-bootstrap); its :main
+# and older releases carry the fleet key. These two scopes take either key and
+# still refuse an unsigned image.
+for repo in ("sdlc", "sdlc-bootstrap"):
+    docker["quay.io/crunchtools/" + repo] = [{
+        "type": "sigstoreSigned",
+        "keyPaths": [sdlc_key, key],
+        "signedIdentity": {"type": "matchRepository"},
+    }]
+# Only these scopes change: the default and every entry the base shipped
 # (the Red Hat keys among them) come through untouched.
-added = {"quay.io/crunchtools"}
+added = {"quay.io/crunchtools", "quay.io/crunchtools/sdlc", "quay.io/crunchtools/sdlc-bootstrap"}
 assert policy["default"] == base["default"]
 for transport, scopes in base.get("transports", {}).items():
     for scope, reqs in scopes.items():
