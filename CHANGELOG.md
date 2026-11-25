@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **Gourmand passes on main** (#78, a1387). The commit and push hooks were
+  refusing every change. Moving to an sdlc that runs Gourmand in the check job
+  would also have turned CI red. `tests/signing-key.py` now exits from `main()`,
+  and its curve-point and prefix lengths are named constants.
+  `sdlc.toml` moves into `pyproject.toml` with
+  `skip-stacks = ["python"]`, so sdlc still judges this repo as a bootc image.
+  The file also holds the fleet's ruff config (IF001), and a `ruff-check`
+  pre-commit hook at ruff 0.17.1 lints `tests/*.py`. Ruff's findings in
+  `tests/oci-registry.py`, implicit returns from the handlers, are fixed too.
+  Re-run `pre-commit install` to wire the new pre-merge-commit hook.
+
 ### Changed
 - **digest-gate self-test runs offline** (#76, a1372). `tests/digest-gate.sh`
   no longer reads quay.io: it serves two fixture images from

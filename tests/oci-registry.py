@@ -119,8 +119,8 @@ class Registry(BaseHTTPRequestHandler):
             names = sorted(t for r, t in tags if r == repo)
             return self.reply(HTTPStatus.OK, json.dumps({"name": repo, "tags": names}).encode(),
                               {"Content-Type": "application/json"})
-        self.reply(HTTPStatus.NOT_FOUND, b'{"errors":[{"code":"NOT_FOUND"}]}',
-                   {"Content-Type": "application/json"})
+        return self.reply(HTTPStatus.NOT_FOUND, b'{"errors":[{"code":"NOT_FOUND"}]}',
+                          {"Content-Type": "application/json"})
 
     def do_POST(self):
         kind, repo, ref, query = self.route()
@@ -133,7 +133,7 @@ class Registry(BaseHTTPRequestHandler):
                 "Location": f"/v2/{repo}/blobs/{d}", "Docker-Content-Digest": d})
         upload = uuid.uuid4().hex
         uploads[upload] = bytearray(data)
-        self.reply(HTTPStatus.ACCEPTED, headers={
+        return self.reply(HTTPStatus.ACCEPTED, headers={
             "Location": f"/v2/{repo}/blobs/uploads/{upload}", "Range": "0-0"})
 
     def do_PATCH(self):
@@ -142,7 +142,7 @@ class Registry(BaseHTTPRequestHandler):
         if kind != "blobs" or upload not in uploads:
             return self.reply(HTTPStatus.NOT_FOUND)
         uploads[upload] += self.body()
-        self.reply(HTTPStatus.ACCEPTED, headers={
+        return self.reply(HTTPStatus.ACCEPTED, headers={
             "Location": f"/v2/{repo}/blobs/uploads/{upload}",
             "Range": f"0-{max(len(uploads[upload]) - 1, 0)}"})
 
@@ -162,7 +162,7 @@ class Registry(BaseHTTPRequestHandler):
             return self.reply(HTTPStatus.BAD_REQUEST, b'{"errors":[{"code":"DIGEST_INVALID"}]}',
                               {"Content-Type": "application/json"})
         put_blob(data)
-        self.reply(HTTPStatus.CREATED, headers={
+        return self.reply(HTTPStatus.CREATED, headers={
             "Location": f"/v2/{repo}/blobs/{want}", "Docker-Content-Digest": want})
 
 

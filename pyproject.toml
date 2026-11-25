@@ -1,5 +1,9 @@
 [tool.sdlc]
 repo-kinds = ["bootc-image"]
+# This file exists for ruff and for sdlc, not for a package: tests/*.py are
+# scripts, linted by the ruff-check hook. Without this, a pyproject.toml makes
+# sdlc run the python stack instead of the bootc one.
+skip-stacks = ["python"]
 
 # The image needs RHSM and registry.redhat.io secrets, which a pull request's
 # check does not hold: the image job builds, lints and scans it at merge.
@@ -31,3 +35,21 @@ rhsm = true
 # boot = "command" is not enforced (crunchtools/sdlc#118).
 boot = "none"
 boot-none-reason = "a bootc host: PID 1 is systemd; the bootc-lint gate judges the image"
+
+[tool.ruff]
+line-length = 100
+# The Python the sdlc image runs tests/*.py with, and the ruff hook's rev
+# matches the version that image bakes.
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "S", "B", "C4", "C901", "DTZ", "PIE", "PT",
+          "RET", "SIM", "TID", "ARG", "PLC", "PLE", "PLR", "PLW", "TRY", "RUF"]
+
+# Gourmand's IF001 requires explicit thresholds, matched to the fleet's.
+[tool.ruff.lint.pylint]
+max-branches = 10
+max-statements = 50
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
