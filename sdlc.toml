@@ -1,8 +1,11 @@
 [tool.sdlc]
 repo-kinds = ["bootc-image"]
 
+# The image needs RHSM and registry.redhat.io secrets, which a pull request's
+# check does not hold: the image job builds, lints and scans it at merge.
 [tool.sdlc.ci]
 checks = ["signing-key", "digest-gate"]
+skip = ["container-build", "bootc-lint", "container-scan"]
 
 # The shipped public key must parse (#44): what container.yml's `signing key`
 # job checked with openssl. Hosts verify every pull against it.
