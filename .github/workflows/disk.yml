@@ -7,8 +7,8 @@
 # Dispatched with the digest to install, and only from main or a v* tag: the
 # root key comes from the checked-out install/root-authorized-keys, so a run on
 # any other ref could ship someone else's key under the artifact name an
-# operator downloads. Pull requests run only the digest gate, which is
-# unprivileged and uploads nothing.
+# operator downloads. The digest gate's self-test runs in `sdlc ci` (sdlc.toml,
+# digest-gate), on every pull request.
 #
 # The source digest must carry the bootc signature, or nothing is built: a disk
 # is a host, and it should start from what a host would accept as an update.
@@ -24,9 +24,6 @@ on:
         description: "sha256:... of quay.io/crunchtools/rhel10-bootc-server to install"
         required: true
         type: string
-  pull_request:
-    paths: ['.github/workflows/disk.yml', 'install/root-authorized-keys',
-            'tests/digest-gate.sh']
 
 permissions: {}
 
@@ -102,23 +99,3 @@ jobs:
           path: output/image/
           retention-days: 7
           compression-level: 0
-
-  digest-gate:
-    name: digest gate
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - name: Install cosign v2.6.5
-        run: |
-          set -eu
-          curl -fsSLo "$RUNNER_TEMP/cosign" https://github.com/sigstore/cosign/releases/download/v2.6.5/cosign-linux-amd64
-          echo "c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644  $RUNNER_TEMP/cosign" | sha256sum -c
-          sudo install -m 0755 "$RUNNER_TEMP/cosign" /usr/local/bin/cosign
-      - name: Unsigned and malformed digests are refused, a signed one passes
-        run: tests/digest-gate.sh
