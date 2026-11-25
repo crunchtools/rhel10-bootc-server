@@ -1,5 +1,34 @@
 [tool.sdlc]
 repo-kinds = ["bootc-image"]
-# Written by python-sdlc's scripts/convert_repo.py: the image has no checks
-# for these stacks yet, and a stack it cannot check makes every run exit 2.
-skip-stacks = ["bootc"]
+
+# The image needs RHSM and registry.redhat.io secrets, which a pull request's
+# check does not hold: the image job builds, lints and scans it at merge.
+[tool.sdlc.ci]
+checks = ["signing-key", "digest-gate"]
+skip = ["container-build", "bootc-lint", "container-scan"]
+
+# The shipped public key must be a valid ECDSA P-256 key (#44); hosts verify
+# every pull against it.
+[tool.sdlc.ci.signing-key]
+kind = "command"
+argv = ["python3", "tests/signing-key.py"]
+
+# disk.yml's pull-request job: its signature boundary refuses malformed and
+# unsigned digests and passes a signed one. Reads quay, so it needs the network.
+[tool.sdlc.ci.digest-gate]
+kind = "command"
+argv = ["bash", "tests/digest-gate.sh"]
+network = true
+
+[tool.sdlc.image]
+# Written by crunchtools/sdlc's scripts/convert_repo.py: moved from the workflows.
+image = "quay.io/crunchtools/rhel10-bootc-server"
+format = "oci"
+free-disk = true
+redhat-registry = true
+rhsm = true
+# The boot gate for this image is `bootc container lint`: the bootc stack's
+# bootc-lint gate runs it on the built image before it is pushed, and
+# boot = "command" is not enforced (crunchtools/sdlc#118).
+boot = "none"
+boot-none-reason = "a bootc host: PID 1 is systemd; the bootc-lint gate judges the image"
