@@ -9,6 +9,10 @@ All notable changes to this project are documented here. The format follows
 ## [1.8.0] - 2026-11-25
 
 ### Fixed
+- **The release states its version** (a1654). `pyproject.toml` carries
+  `[project].version` beside `VERSION`, as sdlc's `write` job requires of any
+  repository with a `pyproject.toml`; the first 1.8.0 merge was refused
+  untagged for stating none. A release moves both.
 - **Gourmand passes on main** (#78, a1387). The commit and push hooks were
   refusing every change. Moving to an sdlc that runs Gourmand in the check job
   would also have turned CI red. `tests/signing-key.py` now exits from `main()`,
