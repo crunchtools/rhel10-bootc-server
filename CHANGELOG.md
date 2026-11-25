@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **digest-gate self-test runs offline** (#76, a1372). `tests/digest-gate.sh`
+  no longer reads quay.io: it serves two fixture images from
+  `tests/oci-registry.py` on loopback, signs one with a key made for the run,
+  and proves the gate refuses the unsigned one, refuses the signed one under
+  the production key, and accepts it under the run's key. The check drops
+  `network = true`, so a Quay outage or a moved tag no longer fails a pull
+  request. The gate itself is unchanged.
+
 ## [1.7.0] - 2026-11-24
 
 ### Added
