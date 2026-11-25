@@ -1,3 +1,9 @@
+# The release's version, which sdlc's write job requires a pyproject.toml to
+# state. A release moves it with VERSION.
+[project]
+name = "rhel10-bootc-server"
+version = "1.8.0"
+
 [tool.sdlc]
 repo-kinds = ["bootc-image"]
 # This file exists for ruff and for sdlc, not for a package: tests/*.py are
