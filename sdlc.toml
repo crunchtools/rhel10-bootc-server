@@ -7,8 +7,8 @@ repo-kinds = ["bootc-image"]
 checks = ["signing-key", "digest-gate"]
 skip = ["container-build", "bootc-lint", "container-scan"]
 
-# The shipped public key must parse (#44): what container.yml's `signing key`
-# job checked with openssl. Hosts verify every pull against it.
+# The shipped public key must be a valid ECDSA P-256 key (#44); hosts verify
+# every pull against it.
 [tool.sdlc.ci.signing-key]
 kind = "command"
 argv = ["python3", "tests/signing-key.py"]
@@ -27,8 +27,8 @@ format = "oci"
 free-disk = true
 redhat-registry = true
 rhsm = true
-# container.yml's boot-command was `bootc container lint` on the image. The
-# bootc stack's bootc-lint gate runs exactly that on the built image before it
-# is pushed, and boot = "command" is not enforced (crunchtools/sdlc#118).
+# The boot gate for this image is `bootc container lint`: the bootc stack's
+# bootc-lint gate runs it on the built image before it is pushed, and
+# boot = "command" is not enforced (crunchtools/sdlc#118).
 boot = "none"
 boot-none-reason = "a bootc host: PID 1 is systemd; the bootc-lint gate judges the image"
