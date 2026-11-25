@@ -49,15 +49,17 @@ EOF
 # one in the release's SHA256SUMS, signed by rclone's release key
 # FBF737ECE9F8AB18604BD2AC93935E02FF3B54FA. Go back to EPEL's package once it
 # carries brotli >= 1.2.7. /usr/bin/rclone is bind-mounted into nagios-agent.
-ARG RCLONE_VERSION=1.76.0
-ARG RCLONE_SHA256=a4615495895fec32671c12b45b92f59c60a97fccd3c61a9e02dc3dc2e927a74f
+# Not RCLONE_*: rclone reads every RCLONE_<FLAG> variable as that flag, and an
+# ARG is in the RUN's environment, so RCLONE_VERSION became --version.
+ARG RCLONE_RPM_VERSION=1.76.0
+ARG RCLONE_RPM_SHA256=a4615495895fec32671c12b45b92f59c60a97fccd3c61a9e02dc3dc2e927a74f
 RUN curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 --connect-timeout 30 \
         -o /tmp/rclone.rpm \
-        "https://github.com/rclone/rclone/releases/download/v${RCLONE_VERSION}/rclone-v${RCLONE_VERSION}-linux-amd64.rpm" && \
-    echo "${RCLONE_SHA256}  /tmp/rclone.rpm" | sha256sum -c - && \
+        "https://github.com/rclone/rclone/releases/download/v${RCLONE_RPM_VERSION}/rclone-v${RCLONE_RPM_VERSION}-linux-amd64.rpm" && \
+    echo "${RCLONE_RPM_SHA256}  /tmp/rclone.rpm" | sha256sum -c - && \
     rpm -i /tmp/rclone.rpm && \
     rm -f /tmp/rclone.rpm && \
-    test "$(rclone version | head -1)" = "rclone v${RCLONE_VERSION}"
+    test "$(rclone version | head -1)" = "rclone v${RCLONE_RPM_VERSION}"
 
 # Host log forwarding. rsyslog.conf REPLACES the stock RHEL one, which reads
 # the journal with imjournal -- that module silently stops following after a

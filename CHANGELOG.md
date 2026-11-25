@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- **The rclone build arguments are `RCLONE_RPM_*`** (a1654). rclone reads
+  every `RCLONE_<FLAG>` environment variable as that flag, and an `ARG` is in
+  the `RUN`'s environment, so `RCLONE_VERSION` became `--version` and the
+  install's own version check failed the build.
 - **rclone comes from upstream 1.76.0** (a1654). EPEL's rclone 1.75.2 links
   `github.com/andybalholm/brotli` v1.2.2 (GO-2026-6888, critical, in CISA's
   KEV), which failed the image job's container-scan, so 1.8.1 has no image.
