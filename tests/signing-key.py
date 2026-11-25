@@ -12,10 +12,12 @@ validates the PEM itself, stdlib only:
 
 Before judging the shipped key it judges known-bad variants of it (wrong
 header, wrong curve, compressed or truncated point, a point off the curve,
-broken base64), so a check that accepts anything fails instead of passing.
+broken base64, missing or wrong PEM lines), so a check that accepts anything
+fails instead of passing.
 """
 
 import base64
+import re
 import sys
 
 PUB = "etc/pki/sigstore/crunchtools-bootc.pub"
@@ -24,13 +26,17 @@ PUB = "etc/pki/sigstore/crunchtools-bootc.pub"
 SPKI_P256 = bytes.fromhex("3059301306072a8648ce3d020106082a8648ce3d030107034200")
 P = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
 B = 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B
+PEM = re.compile(r"-----BEGIN PUBLIC KEY-----\n([A-Za-z0-9+/=\n]+)-----END PUBLIC KEY-----\n?")
 
 
 def der_of(text: str) -> bytes:
+    """The DER of a file holding exactly one PEM public key, or b"" for anything else."""
+    m = PEM.fullmatch(text)
+    if not m:
+        return b""
     try:
-        body = text.split("-----BEGIN PUBLIC KEY-----")[1].split("-----END PUBLIC KEY-----")[0]
-        return base64.b64decode("".join(body.split()), validate=True)
-    except (IndexError, ValueError):
+        return base64.b64decode(m.group(1).replace("\n", ""), validate=True)
+    except ValueError:
         return b""
 
 
@@ -68,9 +74,15 @@ bad = {
     "coordinate not a field element": der[:h + 1] + b"\xff" * 32 + der[h + 33 :],
 }
 wrong = [name for name, d in bad.items() if is_p256(der_of(pem(d)))]
-if is_p256(der_of(text.replace("-----BEGIN PUBLIC KEY-----\n", "-----BEGIN PUBLIC KEY-----\n!"))):
-    wrong.append("broken base64")
+bad_pem = {
+    "broken base64": text.replace("-----BEGIN PUBLIC KEY-----\n", "-----BEGIN PUBLIC KEY-----\n!"),
+    "no BEGIN line": text.replace("-----BEGIN PUBLIC KEY-----\n", ""),
+    "no END line": text.replace("-----END PUBLIC KEY-----", ""),
+    "a private-key label": text.replace("PUBLIC KEY", "PRIVATE KEY"),
+    "text after the key": text + "trailing\n",
+}
+wrong += [name for name, t in bad_pem.items() if is_p256(der_of(t))]
 if wrong:
     print(f"the P-256 check accepts what it must refuse: {', '.join(wrong)}", file=sys.stderr)
     sys.exit(1)
-print(f"{PUB}: ECDSA P-256, point on the curve; {len(bad) + 1} malformed variants refused")
+print(f"{PUB}: ECDSA P-256, point on the curve; {len(bad) + len(bad_pem)} malformed variants refused")
