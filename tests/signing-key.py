@@ -22,8 +22,11 @@ import sys
 
 PUB = "etc/pki/sigstore/crunchtools-bootc.pub"
 
-# SEQUENCE(89) { SEQUENCE(19) { OID id-ecPublicKey, OID prime256v1 }, BIT STRING(66, 0 unused) }
+# SEQUENCE(89) { SEQUENCE(19) { OID id-ecPublicKey, OID prime256v1 }, BIT STRING(66), padding 0 }
 SPKI_P256 = bytes.fromhex("3059301306072a8648ce3d020106082a8648ce3d030107034200")
+COORD = 32  # bytes in a P-256 field element
+UNCOMPRESSED = 0x04  # SEC 1 point-format prefix
+POINT = 1 + 2 * COORD  # uncompressed: the prefix, X, Y
 P = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
 B = 0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B
 PEM = re.compile(r"-----BEGIN PUBLIC KEY-----\n([A-Za-z0-9+/=\n]+)-----END PUBLIC KEY-----\n?")
@@ -41,48 +44,57 @@ def der_of(text: str) -> bytes:
 
 
 def is_p256(der: bytes) -> bool:
-    if len(der) != len(SPKI_P256) + 65 or not der.startswith(SPKI_P256):
+    if len(der) != len(SPKI_P256) + POINT or not der.startswith(SPKI_P256):
         return False
     point = der[len(SPKI_P256):]
-    if point[0] != 4:
+    if point[0] != UNCOMPRESSED:
         return False
-    x = int.from_bytes(point[1:33], "big")
-    y = int.from_bytes(point[33:], "big")
+    x = int.from_bytes(point[1 : 1 + COORD], "big")
+    y = int.from_bytes(point[1 + COORD :], "big")
     if x >= P or y >= P:
         return False
     return (y * y - (x * x * x - 3 * x + B)) % P == 0
 
 
 def pem(der: bytes) -> str:
-    return "-----BEGIN PUBLIC KEY-----\n" + base64.b64encode(der).decode() + "\n-----END PUBLIC KEY-----\n"
+    b64 = base64.b64encode(der).decode()
+    return f"-----BEGIN PUBLIC KEY-----\n{b64}\n-----END PUBLIC KEY-----\n"
 
 
-text = open(PUB).read()
-der = der_of(text)
-if not is_p256(der):
-    print(f"{PUB} is not a valid ECDSA P-256 public key", file=sys.stderr)
-    sys.exit(1)
+def main() -> int:
+    with open(PUB) as f:
+        text = f.read()
+    der = der_of(text)
+    if not is_p256(der):
+        print(f"{PUB} is not a valid ECDSA P-256 public key", file=sys.stderr)
+        return 1
 
-h = len(SPKI_P256)
-bad = {
-    "wrong algorithm OID": der[:12] + b"\x00" + der[13:],
-    "wrong curve OID": der[:22] + b"\x08" + der[23:],
-    "nonzero unused bits": der[: h - 1] + b"\x01" + der[h:],
-    "compressed point": der[:h] + b"\x02" + der[h + 1 :],
-    "truncated point": der[:-1],
-    "point off the curve": der[:-1] + bytes([der[-1] ^ 1]),
-    "coordinate not a field element": der[:h + 1] + b"\xff" * 32 + der[h + 33 :],
-}
-wrong = [name for name, d in bad.items() if is_p256(der_of(pem(d)))]
-bad_pem = {
-    "broken base64": text.replace("-----BEGIN PUBLIC KEY-----\n", "-----BEGIN PUBLIC KEY-----\n!"),
-    "no BEGIN line": text.replace("-----BEGIN PUBLIC KEY-----\n", ""),
-    "no END line": text.replace("-----END PUBLIC KEY-----", ""),
-    "a private-key label": text.replace("PUBLIC KEY", "PRIVATE KEY"),
-    "text after the key": text + "trailing\n",
-}
-wrong += [name for name, t in bad_pem.items() if is_p256(der_of(t))]
-if wrong:
-    print(f"the P-256 check accepts what it must refuse: {', '.join(wrong)}", file=sys.stderr)
-    sys.exit(1)
-print(f"{PUB}: ECDSA P-256, point on the curve; {len(bad) + len(bad_pem)} malformed variants refused")
+    h = len(SPKI_P256)
+    bad = {
+        "wrong algorithm OID": der[:12] + b"\x00" + der[13:],
+        "wrong curve OID": der[:22] + b"\x08" + der[23:],
+        "nonzero unused bits": der[: h - 1] + b"\x01" + der[h:],
+        "compressed point": der[:h] + b"\x02" + der[h + 1 :],
+        "truncated point": der[:-1],
+        "point off the curve": der[:-1] + bytes([der[-1] ^ 1]),
+        "coordinate not a field element": der[: h + 1] + b"\xff" * COORD + der[h + 1 + COORD :],
+    }
+    wrong = [name for name, d in bad.items() if is_p256(der_of(pem(d)))]
+    bad_pem = {
+        "broken base64": text.replace("KEY-----\n", "KEY-----\n!", 1),
+        "no BEGIN line": text.replace("-----BEGIN PUBLIC KEY-----\n", ""),
+        "no END line": text.replace("-----END PUBLIC KEY-----", ""),
+        "a private-key label": text.replace("PUBLIC KEY", "PRIVATE KEY"),
+        "text after the key": text + "trailing\n",
+    }
+    wrong += [name for name, t in bad_pem.items() if is_p256(der_of(t))]
+    if wrong:
+        print(f"the P-256 check accepts what it must refuse: {', '.join(wrong)}", file=sys.stderr)
+        return 1
+    refused = len(bad) + len(bad_pem)
+    print(f"{PUB}: ECDSA P-256, point on the curve; {refused} malformed variants refused")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

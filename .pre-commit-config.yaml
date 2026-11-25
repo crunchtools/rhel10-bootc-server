@@ -9,15 +9,24 @@
 #                              its CI in with the repository variable SDLC_IMAGE.
 #
 # What each hook runs is configured in pyproject.toml ([tool.sdlc.commit],
-# [tool.sdlc.push], [tool.sdlc.ci]) or, in a repo with no pyproject.toml,
-# sdlc.toml. `.sdlc/bin/sdlc tiers` prints it.
+# [tool.sdlc.push], [tool.sdlc.ci]). `.sdlc/bin/sdlc tiers` prints it.
 #
-# `default_install_hook_types` must name both: without pre-push, `pre-commit
-# install` wires only the commit hook and every verdict silently stops running.
+# `default_install_hook_types` must name every stage: without pre-push,
+# `pre-commit install` wires only the commit hook and every verdict silently
+# stops running; without pre-merge-commit, a merge skips ruff.
 
-default_install_hook_types: [pre-commit, pre-push]
+default_install_hook_types: [pre-commit, pre-merge-commit, pre-push]
 
 repos:
+  # sdlc skips its python stack here (pyproject.toml), so ruff runs from its own
+  # hook, at the version the sdlc image bakes. Gourmand's IF001 requires it.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: 38bfb07c0c64c304f47eb52090f8288150c77730  # frozen: v0.17.1
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        stages: [pre-commit, pre-merge-commit]
+
   - repo: local
     hooks:
       - id: sdlc-commit
