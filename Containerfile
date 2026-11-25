@@ -54,24 +54,27 @@ COPY etc/systemd/journald.conf.d/10-forward-to-syslog.conf /etc/systemd/journald
 COPY etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf /etc/systemd/system/rsyslog.service.d/10-syslog-socket.conf
 COPY etc/containers/containers.conf.d/50-exec-cleanup.conf /etc/containers/containers.conf.d/50-exec-cleanup.conf
 
-# Signed updates (#44). A stolen Quay token could move :latest to any image,
-# and every host would boot it at the next weekly upgrade. The pipeline signs
-# each promoted digest with cosign; these entries make c/image refuse a
-# quay.io/crunchtools/rhel10-bootc-* image that key did not sign. bootc honours
+# Signed updates (#44, #47). A stolen Quay token could move any tag to any
+# image, and every host would run it at the next bootc upgrade or nightly
+# podman auto-update. The pipeline signs each promoted digest with cosign;
+# these entries make c/image refuse any quay.io/crunchtools image that key did
+# not sign -- the bootc image itself and every service image. bootc honours
 # them through its default ostree-unverified-registry origin -- do NOT switch
 # hosts with --enforce-container-sigpolicy, which refuses any policy whose
-# default is insecureAcceptAnything, and that default stays: every other
-# crunchtools image is unsigned and updates nightly through podman auto-update
-# (#47). The Red Hat entries are kept as the base ships them. The base may
+# default is insecureAcceptAnything, and that default stays for the other
+# registries. The Red Hat entries are kept as the base ships them. The base may
 # ship its policy in /etc or only in /usr/share (containers-common 6); the
 # merged file goes to /etc, which outranks both.
 COPY etc/pki/sigstore/crunchtools-bootc.pub /etc/pki/sigstore/crunchtools-bootc.pub
+COPY etc/pki/sigstore/crunchtools-sdlc.pub /etc/pki/sigstore/crunchtools-sdlc.pub
 COPY etc/containers/registries.d/crunchtools-bootc.yaml /etc/containers/registries.d/crunchtools-bootc.yaml
 RUN python3 -I - <<'EOF'
 import json, os
 key = "/etc/pki/sigstore/crunchtools-bootc.pub"
-with open(key) as f:
-    assert f.read().startswith("-----BEGIN PUBLIC KEY-----"), key + " is not a PEM public key"
+sdlc_key = "/etc/pki/sigstore/crunchtools-sdlc.pub"
+for k in (key, sdlc_key):
+    with open(k) as f:
+        assert f.read().startswith("-----BEGIN PUBLIC KEY-----"), k + " is not a PEM public key"
 src = next((p for p in ("/etc/containers/policy.json", "/usr/share/containers/policy.json")
             if os.path.exists(p)), None)
 assert src, "the base ships no containers policy.json to merge into"
@@ -80,15 +83,25 @@ with open(src) as f:
 policy = json.loads(json.dumps(base))
 docker = policy.setdefault("transports", {}).setdefault("docker", {})
 # cosign signs the repository, not a tag, so only matchRepository accepts it.
-for repo in ("rhel10-bootc-server", "rhel10-bootc-workstation"):
+# A namespace scope covers every repository under it, each matched to its own
+# name.
+docker["quay.io/crunchtools"] = [{
+    "type": "sigstoreSigned",
+    "keyPath": key,
+    "signedIdentity": {"type": "matchRepository"},
+}]
+# sdlc signs its own releases with sdlc's key (bin/sdlc-bootstrap); its :main
+# and older releases carry the fleet key. These two scopes take either key and
+# still refuse an unsigned image.
+for repo in ("sdlc", "sdlc-bootstrap"):
     docker["quay.io/crunchtools/" + repo] = [{
         "type": "sigstoreSigned",
-        "keyPath": key,
+        "keyPaths": [sdlc_key, key],
         "signedIdentity": {"type": "matchRepository"},
     }]
-# Only the two scopes change: the default and every entry the base shipped
+# Only these scopes change: the default and every entry the base shipped
 # (the Red Hat keys among them) come through untouched.
-added = {"quay.io/crunchtools/rhel10-bootc-server", "quay.io/crunchtools/rhel10-bootc-workstation"}
+added = {"quay.io/crunchtools", "quay.io/crunchtools/sdlc", "quay.io/crunchtools/sdlc-bootstrap"}
 assert policy["default"] == base["default"]
 for transport, scopes in base.get("transports", {}).items():
     for scope, reqs in scopes.items():
@@ -100,6 +113,9 @@ with open("/etc/containers/policy.json", "w") as f:
 with open("/etc/containers/policy.json") as f:
     assert json.load(f) == policy
 EOF
+RUN --mount=type=bind,source=tests,target=/run/tests,z \
+    /run/tests/sigpolicy.sh && \
+    /run/tests/sigpolicy.sh /etc/containers/policy.json /etc/containers/registries.d
 
 # Backup interlock (RT #1594). `bootc upgrade --apply` reboots this host on its
 # own, and it killed a ten-hour pCloud rotation at 93%. The pbs rotations hold
