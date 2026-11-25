@@ -113,7 +113,8 @@ with open("/etc/containers/policy.json", "w") as f:
 with open("/etc/containers/policy.json") as f:
     assert json.load(f) == policy
 EOF
-RUN --mount=type=bind,source=tests,target=/run/tests,z \
+
+RUN --mount=type=bind,source=tests,target=/run/tests \
     /run/tests/sigpolicy.sh && \
     /run/tests/sigpolicy.sh /etc/containers/policy.json /etc/containers/registries.d
 
@@ -259,8 +260,8 @@ COPY etc/libexec/wifi-watchdog /usr/libexec/wifi-watchdog
 COPY etc/systemd/system/wifi-watchdog.service /usr/lib/systemd/system/wifi-watchdog.service
 COPY etc/systemd/system/wifi-watchdog.timer /usr/lib/systemd/system/wifi-watchdog.timer
 RUN chmod 0755 /usr/libexec/wifi-watchdog && systemctl enable wifi-watchdog.timer
-RUN --mount=type=bind,source=tests,target=/run/tests,z \
-    --mount=type=bind,source=install,target=/run/install,z \
+RUN --mount=type=bind,source=tests,target=/run/tests \
+    --mount=type=bind,source=install,target=/run/install \
     /run/tests/wifi-watchdog.sh /usr/libexec/wifi-watchdog && \
     /run/tests/wifi-ks.sh /run/install/wifi.ks.example
 
@@ -283,7 +284,7 @@ RUN systemctl set-default multi-user.target && \
 
 # Log forwarding reaches RSYSLOG_COLLECTOR, end to end (tests/forward-target.sh).
 # rsyslogd -N1 passed a version of this that forwarded nowhere.
-RUN --mount=type=bind,source=tests,target=/run/tests,z \
+RUN --mount=type=bind,source=tests,target=/run/tests \
     /run/tests/forward-target.sh
 
 # Clean up (RHSM unregister happens via the trap in the dnf layer above)
