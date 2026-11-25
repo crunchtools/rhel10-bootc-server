@@ -28,7 +28,6 @@ dnf install -y --nodocs \
     python3-pip \
     python3-devel \
     sqlite \
-    rclone \
     rsyslog \
     gh \
     uv \
@@ -43,6 +42,22 @@ dnf install -y --nodocs \
 dnf clean all
 rm -rf /var/cache/dnf /var/cache/yum
 EOF
+
+# rclone comes from upstream, not EPEL: EPEL's 1.75.2 links
+# github.com/andybalholm/brotli v1.2.2 (GO-2026-6888, critical, in KEV), and
+# 1.76.0 links 1.2.7 (a1654). The rpm is pinned by its sha256, which is the
+# one in the release's SHA256SUMS, signed by rclone's release key
+# FBF737ECE9F8AB18604BD2AC93935E02FF3B54FA. Go back to EPEL's package once it
+# carries brotli >= 1.2.7. /usr/bin/rclone is bind-mounted into nagios-agent.
+ARG RCLONE_VERSION=1.76.0
+ARG RCLONE_SHA256=a4615495895fec32671c12b45b92f59c60a97fccd3c61a9e02dc3dc2e927a74f
+RUN curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 --connect-timeout 30 \
+        -o /tmp/rclone.rpm \
+        "https://github.com/rclone/rclone/releases/download/v${RCLONE_VERSION}/rclone-v${RCLONE_VERSION}-linux-amd64.rpm" && \
+    echo "${RCLONE_SHA256}  /tmp/rclone.rpm" | sha256sum -c - && \
+    rpm -i /tmp/rclone.rpm && \
+    rm -f /tmp/rclone.rpm && \
+    test "$(rclone version | head -1)" = "rclone v${RCLONE_VERSION}"
 
 # Host log forwarding. rsyslog.conf REPLACES the stock RHEL one, which reads
 # the journal with imjournal -- that module silently stops following after a
