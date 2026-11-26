@@ -29,6 +29,7 @@ dnf install -y --nodocs \
     python3-devel \
     sqlite \
     rsyslog \
+    audispd-plugins \
     gh \
     uv \
     sysstat \
