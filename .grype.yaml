@@ -1,0 +1,35 @@
+# Vulnerabilities container-scan accepts, each for one ID in one Red Hat-shipped
+# binary only. Nothing we install is ignored here (a1654).
+ignore:
+  # toolbox-0.3-3.el10. Red Hat has no fixed build as of 2026-11-25; remove when errata ship; expires 2026-12-09
+  - vulnerability: GO-2026-6604
+    package:
+      location: "/usr/bin/toolbox"
+  # the base's ostree copy of toolbox-0.3-3.el10's /usr/bin/toolbox. Red Hat has no fixed build as of 2026-11-25; remove when errata ship; expires 2026-12-09
+  - vulnerability: GO-2026-6604
+    package:
+      location: "/sysroot/ostree/repo/objects/f9/d481a82098fd565dc79d933e074b11cfb5289c529babf28f5b3f4099172546.file"
+  # the base's ostree copy of podman-6.1.1-1.el10_3's /usr/bin/podman. Red Hat has no fixed build as of 2026-11-25; remove when errata ship; expires 2026-12-09
+  - vulnerability: GO-2026-6604
+    package:
+      location: "/sysroot/ostree/repo/objects/86/7053d26c2ac4e0f1fa7a6ab7d6d9d283889afe0fc5337dc886e8fd05e70c12.file"
+  # podman-6.1.4-1.el10_3. Red Hat has no fixed build as of 2026-11-25; remove when errata ship; expires 2026-12-09
+  - vulnerability: GO-2026-6612
+    package:
+      location: "/usr/bin/podman"
+  # toolbox-0.3-3.el10. Red Hat has no fixed build as of 2026-11-25; remove when errata ship; expires 2026-12-09
+  - vulnerability: GO-2026-6612
+    package:
+      location: "/usr/bin/toolbox"
+  # the base's ostree copy of toolbox-0.3-3.el10's /usr/bin/toolbox. Red Hat has no fixed build as of 2026-11-25; remove when errata ship; expires 2026-12-09
+  - vulnerability: GO-2026-6612
+    package:
+      location: "/sysroot/ostree/repo/objects/f9/d481a82098fd565dc79d933e074b11cfb5289c529babf28f5b3f4099172546.file"
+  # the base's ostree copy of podman-6.1.1-1.el10_3's /usr/bin/podman. Red Hat has no fixed build as of 2026-11-25; remove when errata ship; expires 2026-12-09
+  - vulnerability: GO-2026-6612
+    package:
+      location: "/sysroot/ostree/repo/objects/86/7053d26c2ac4e0f1fa7a6ab7d6d9d283889afe0fc5337dc886e8fd05e70c12.file"
+  # the base's ostree copy of skopeo-1.24.0-3.el10_3's /usr/bin/skopeo. Red Hat has no fixed build as of 2026-11-25; remove when errata ship; expires 2026-12-09
+  - vulnerability: GO-2026-6612
+    package:
+      location: "/sysroot/ostree/repo/objects/4d/fb07eefce70d218e026e2061efa98768f5c04a44f0fc4e9883831b573cc473.file"
