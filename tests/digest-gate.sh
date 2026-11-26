@@ -41,7 +41,7 @@ digest_of() {
     skopeo inspect --tls-verify=false --no-tags --format '{{.Digest}}' "docker://$repo:$1"
 }
 signed=$(digest_of signed)
-cosign sign --yes --tlog-upload=false --key "$work/cosign.key" "$repo@$signed" >/dev/null 2>&1 \
+cosign sign --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key "$work/cosign.key" "$repo@$signed" >/dev/null 2>&1 \
     || { echo "::error::could not sign the fixture image" >&2; exit 1; }
 
 refuse() {

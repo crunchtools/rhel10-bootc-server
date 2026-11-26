@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **digest-gate signs its fixture with cosign v3** (a1057). sdlc 0.18.0 runs
+  Hummingbird's cosign 3.1.6, which refuses `--tlog-upload=false` without
+  `--use-signing-config=false`; the fixture sign now passes both legacy-format
+  flags, as sdlc's own signing does.
+
 ### Added
 - **Seat audit trail support** (a1057). `audispd-plugins` is installed, so
   auditd's syslog plugin can hand each worker seat's command records to
