@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- **container-scan accepts GO-2026-6612 and GO-2026-6604 in Red Hat's own
+  Go binaries until errata ship** (a1654). `.grype.yaml` names each ID once per
+  path, and only where an RPM from the rhel-bootc base owns the file:
+  `/usr/bin/podman`, `/usr/bin/toolbox`, and the base's ostree copies of podman,
+  skopeo and toolbox (each proven byte-identical to the RPM's file). Red Hat
+  has no fixed build as of 2026-11-25; every entry expires 2026-12-09.
 - **The rclone build arguments are `RCLONE_RPM_*`** (a1654). rclone reads
   every `RCLONE_<FLAG>` environment variable as that flag, and an `ARG` is in
   the `RUN`'s environment, so `RCLONE_VERSION` became `--version` and the
