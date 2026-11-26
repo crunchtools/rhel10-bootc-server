@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Seat audit trail support** (a1057). `audispd-plugins` is installed, so
+  auditd's syslog plugin can hand each worker seat's command records to
+  rsyslog, and `rsyslog.conf` now includes `/etc/rsyslog.d/*.conf`, so the
+  seat-fence forwarder to Dolza's collector is read instead of ignored. Both
+  were applied by hand on gloval and exedore (usr-overlay) on 2026-11-26.
+
 ### Removed
 - **linux-mcp-server** (RT#1568). The Josui Prime host-administration path
   through Trentina went unused (one call in its retained logs, and that one
