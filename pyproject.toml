@@ -2,7 +2,7 @@
 # state. A release moves it with VERSION.
 [project]
 name = "rhel10-bootc-server"
-version = "1.8.1"
+version = "1.8.2"
 
 [tool.sdlc]
 repo-kinds = ["bootc-image"]

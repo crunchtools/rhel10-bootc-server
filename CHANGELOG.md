@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-11-26
+
 ### Fixed
 - **container-scan accepts GO-2026-6612 and GO-2026-6604 in Red Hat's own
   Go binaries until errata ship** (a1654). `.grype.yaml` names each ID once per
