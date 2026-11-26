@@ -160,7 +160,7 @@ RUN chmod 0755 /usr/libexec/bootc-apply-deferred
 
 # All three files, or the interlock has a hole that nothing reports: a missing
 # unit makes every OnFailure= a no-op and the deferral silently goes back to
-# being a skipped update. 1.2.0 shipped exactly this way with linux-mcp-server.
+# being a skipped update. 1.2.0 shipped a missing unit exactly this way.
 RUN set -e; \
     for f in /usr/lib/systemd/system/bootc-apply-deferred.service \
              /usr/lib/systemd/system/bootc-apply-retry.timer \
@@ -197,76 +197,6 @@ RUN set -e; \
 # carries the decision it must produce.
 RUN /usr/libexec/bootc-apply-deferred --self-test \
         /usr/share/bootc-apply-deferred/testdata
-
-# linux-mcp-server: host administration for the Josui Prime agent, reached
-# only through the Trentina gateway (RT#1568). It is in the image rather than
-# installed by hand because /usr and /opt are read-only here and because the
-# one service that exists to repair this host should survive rebuilding it.
-#
-# Pinned. This runs as root, and a floating version is not a thing to find out
-# about at boot.
-#
-# Not enabled: it needs /etc/linux-mcp-server/linux-mcp.env, which holds the
-# gatekeeper API key and is per-host, so the unit carries a ConditionPathExists
-# and a host without that file simply does not start it.
-RUN UV_TOOL_DIR=/usr/lib/linux-mcp-server UV_TOOL_BIN_DIR=/usr/bin \
-        uv tool install linux-mcp-server==1.8.0 && \
-    rm -rf /root/.cache
-
-COPY etc/linux-mcp-server/policy.yaml /etc/linux-mcp-server/policy.yaml
-# Source lives under etc/ so the build workflow's paths filter sees it; the
-# destination is /usr/lib because this unit comes from the image, not the host.
-COPY etc/systemd/system/linux-mcp-server.service /usr/lib/systemd/system/linux-mcp-server.service
-COPY etc/libexec/linux-mcp-server-preflight /usr/libexec/linux-mcp-server-preflight
-COPY etc/libexec/testdata /usr/share/linux-mcp-server/testdata
-RUN chmod 0755 /usr/libexec/linux-mcp-server-preflight
-
-# Everything this feature needs is in the image. A COPY lost in an edit
-# produces a host where the binary and its config are present, the service
-# simply does not exist, and nothing says so until someone asks systemd for
-# it -- which is how 1.2.0 shipped.
-RUN set -e; \
-    for f in /usr/bin/linux-mcp-server \
-             /usr/lib/systemd/system/linux-mcp-server.service \
-             /usr/libexec/linux-mcp-server-preflight \
-             /etc/linux-mcp-server/policy.yaml; do \
-        test -e "$f" || { echo "missing from image: $f" >&2; exit 1; }; \
-    done
-
-# Parse the authorization policy with upstream's own parser. get_policy()
-# raises on a malformed file at the first call, and on the http transport a
-# policy that will not load is deny-everything -- which would be discovered on
-# the day this host needed repairing. Upstream's tests already cover the
-# localhost-grant and wildcard-deny semantics; this only proves our file loads.
-RUN /usr/lib/linux-mcp-server/linux-mcp-server/bin/python -c \
-    'from pathlib import Path; from linux_mcp_server.auth_policy import AuthPolicy; \
-     p = AuthPolicy.from_yaml(Path("/etc/linux-mcp-server/policy.yaml")); \
-     assert len(p.rules) == 2, p.rules'
-
-# Self-test the preflight at build time. It is access control in a script:
-# the IPv6 unspecified address has enough spellings that "looks right" is not
-# evidence, and the fence check is the thing standing between this port and
-# every container on the bridge. The fixtures are nftables' own JSON, taken
-# from the live table and then broken eleven ways; they stay in the image so
-# the same check can be re-run on a host.
-RUN set -e; \
-    export LINUX_MCP_PORT=8034 LINUX_MCP_ALLOW_FROM=10.89.0.89 LINUX_MCP_ALLOW_IF=podman1; \
-    T=/usr/share/linux-mcp-server/testdata; \
-    LINUX_MCP_HOST=10.0.0.1 /usr/libexec/linux-mcp-server-preflight --bind-only; \
-    for bad in 0.0.0.0 :: ::0 0:0:0:0:0:0:0:0 not-an-ip ""; do \
-        if LINUX_MCP_HOST="$bad" /usr/libexec/linux-mcp-server-preflight --bind-only 2>/dev/null; then \
-            echo "preflight accepted a bind address it must refuse: '$bad'" >&2; exit 1; \
-        fi; \
-    done; \
-    export LINUX_MCP_HOST=10.89.0.1; \
-    /usr/libexec/linux-mcp-server-preflight --table-json "$T/fence-good.json"; \
-    for bad in accept-any-source accept-range drop-first drop-conditional \
-               drop-off-hook drop-one-address drop-other-source drop-udp \
-               extra-rule no-accept no-drop; do \
-        if /usr/libexec/linux-mcp-server-preflight --table-json "$T/fence-$bad.json" 2>/dev/null; then \
-            echo "preflight accepted a firewall table it must refuse: $bad" >&2; exit 1; \
-        fi; \
-    done
 
 # Wi-Fi watchdog (a301): re-activates a Wi-Fi connection whose gateway stops
 # answering while NM still calls it connected, which is how an AP channel

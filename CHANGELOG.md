@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Removed
+- **linux-mcp-server** (RT#1568). The Josui Prime host-administration path
+  through Trentina went unused (one call in its retained logs, and that one
+  failed), so the pinned install, policy, unit, preflight and its fence
+  fixtures are gone from the image. Gloval already has the service disabled
+  and its Trentina backend, fence, monitoring and secrets removed; the
+  josui-rescue ssh path is unchanged.
+
 ### Fixed
 - **No boot job for a free-disk alone** (a1654). `[tool.sdlc.image]` drops
   `free-disk = true`. With `boot = "none"` it was the only thing scheduling a
