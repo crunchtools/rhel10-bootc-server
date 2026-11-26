@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **No boot job for a free-disk alone** (a1654). `[tool.sdlc.image]` drops
+  `free-disk = true`. With `boot = "none"` it was the only thing scheduling a
+  boot job, which pulls the unsigned `gated-<sha>` digest before promote signs
+  it, and this repo's own signature policy refuses that pull on Exedore. The
+  image job already reported free-disk as not enforced here (sdlc#118).
+
 ## [1.8.2] - 2026-11-26
 
 ### Fixed

@@ -33,7 +33,6 @@ argv = ["bash", "tests/digest-gate.sh"]
 # Written by crunchtools/sdlc's scripts/convert_repo.py: moved from the workflows.
 image = "quay.io/crunchtools/rhel10-bootc-server"
 format = "oci"
-free-disk = true
 redhat-registry = true
 rhsm = true
 # The boot gate for this image is `bootc container lint`: the bootc stack's
