@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# The signature boundary of disk.yml.
+# The signature boundary of scripts/disk.sh.
 #
 #   digest-gate.sh REPO DIGEST PUBKEY   prints REPO@DIGEST when DIGEST is a
 #                                       sha256 digest PUBKEY signed; fails
-#                                       otherwise. disk.yml builds nothing
+#                                       otherwise. disk.sh builds nothing
 #                                       from a digest this refuses.
 #   digest-gate.sh                      self-test: a malformed digest and an
 #                                       unsigned one are refused, a signed one
