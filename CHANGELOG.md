@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **The GO-2026-6612/GO-2026-6604 ignores now expire 2027-01-08** (a1682),
+  30 days past 2026-12-09 with Scott's ok: Red Hat has not shipped fixed
+  podman, skopeo or toolbox builds yet. Still remove them when errata ship.
+
 ### Fixed
 - **digest-gate signs its fixture with cosign v3** (a1057). sdlc 0.18.0 runs
   Hummingbird's cosign 3.1.6, which refuses `--tlog-upload=false` without
