@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Removed
+- **The `Disk image` and `Backfill signatures` workflows** (a1790). The disk
+  build needs real root, and the fleet `ci.yml` runs no privileged job or
+  digest dispatch, so it is `scripts/disk.sh`, run as root on a host such as
+  Dolza, with the same digest gate, pinned builder and clean-main-or-tag rule.
+  The one-time backfill is done: 82 of the 93 digests in `signing/backfill.txt`
+  verify against the bootc key; the other 11 are rollback digests since
+  deleted or no longer anonymously readable, which nothing can sign. The list
+  goes with it; git history keeps it.
+
 ### Changed
 - **The GO-2026-6612/GO-2026-6604 ignores now expire 2027-01-08** (a1682),
   30 days past 2026-12-09 with Scott's ok: Red Hat has not shipped fixed

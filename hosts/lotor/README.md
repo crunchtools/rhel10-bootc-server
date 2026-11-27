@@ -20,7 +20,7 @@ Copied host-to-host from Lotor, and never through git: the files under
 
 ## Rebuilding it
 
-The disk.yml raw is 10 GiB and Linode refuses images over 6 GiB, so it is
+The `scripts/disk.sh` raw is 10 GiB and Linode refuses images over 6 GiB, so it is
 written straight onto a raw disk:
 
 1. Create a Debian disk (5 GiB, root key in `authorized_keys`) and a raw disk

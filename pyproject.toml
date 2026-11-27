@@ -23,7 +23,7 @@ skip = ["container-build", "bootc-lint", "container-scan"]
 kind = "command"
 argv = ["python3", "tests/signing-key.py"]
 
-# disk.yml's pull-request job: its signature boundary refuses malformed and
+# scripts/disk.sh's signature boundary refuses malformed and
 # unsigned digests and passes a signed one, against a loopback fixture (#76).
 [tool.sdlc.ci.digest-gate]
 kind = "command"
