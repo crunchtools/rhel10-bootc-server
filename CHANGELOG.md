@@ -11,6 +11,9 @@ All notable changes to this project are documented here. The format follows
   build needs real root, and the fleet `ci.yml` runs no privileged job or
   digest dispatch, so it is `scripts/disk.sh`, run as root on a host such as
   Dolza, with the same digest gate, pinned builder and clean-main-or-tag rule.
+  It fetches cosign v2.6.5 by hash as disk.yml did, accepts a v* tag only as
+  origin has it at HEAD, and runs git as the operator under sudo;
+  `tests/disk-sh.sh` (the `disk-sh` check) covers its refusals and its run.
   The one-time backfill is done: 82 of the 93 digests in `signing/backfill.txt`
   verify against the bootc key; the other 11 are rollback digests since
   deleted or no longer anonymously readable, which nothing can sign. The list

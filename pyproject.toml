@@ -14,7 +14,7 @@ skip-stacks = ["python"]
 # The image needs RHSM and registry.redhat.io secrets, which a pull request's
 # check does not hold: the image job builds, lints and scans it at merge.
 [tool.sdlc.ci]
-checks = ["signing-key", "digest-gate"]
+checks = ["signing-key", "digest-gate", "disk-sh"]
 skip = ["container-build", "bootc-lint", "container-scan"]
 
 # The shipped public key must be a valid ECDSA P-256 key (#44); hosts verify
@@ -28,6 +28,12 @@ argv = ["python3", "tests/signing-key.py"]
 [tool.sdlc.ci.digest-gate]
 kind = "command"
 argv = ["bash", "tests/digest-gate.sh"]
+
+# scripts/disk.sh's preconditions and orchestration, with git, curl and podman
+# faked: refusals before anything runs, the cosign hash, REPO@DIGEST (a1804).
+[tool.sdlc.ci.disk-sh]
+kind = "command"
+argv = ["bash", "tests/disk-sh.sh"]
 
 [tool.sdlc.image]
 # Written by crunchtools/sdlc's scripts/convert_repo.py: moved from the workflows.

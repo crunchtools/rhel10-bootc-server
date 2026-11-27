@@ -7,8 +7,10 @@
 #
 #   sudo scripts/disk.sh sha256:<digest> [outdir]
 #
-# Needs real root: osbuild refuses rootless podman, and the fleet ci.yml runs no
-# privileged job, so this is an operator's command on a host such as Dolza.
+# Needs real root (osbuild refuses rootless podman), podman, curl and git; it
+# fetches cosign v2.6.5 itself. The fleet ci.yml runs no privileged job, so
+# this is an operator's command on a host such as Dolza. The disk is
+# <outdir>/image/disk.raw.gz (default output/), beside SOURCE and SHA256SUM.
 # The source digest must carry the bootc signature (tests/digest-gate.sh), or
 # nothing is built: a disk is a host, and it should start from what a host
 # would accept as an update. The root key comes from this checkout's
@@ -26,15 +28,24 @@ COSIGN_SHA256=c3b4f5410e608af03a5eb0aaac84a4313d8da131248e08ff1759ac70c79d1644
 BIB=quay.io/centos-bootc/bootc-image-builder@sha256:dab86ee6b46dcade411b37f4e70b07d93b6a06da0dbfec6fe89247a220e0d9f8
 
 digest=${1:?usage: scripts/disk.sh sha256:<digest> [outdir]}
-cd "$(git rev-parse --show-toplevel)"
+[ "$(id -u)" = 0 ] || { echo "run as root: osbuild needs real root, not rootless podman" >&2; exit 1; }
+# Git runs as the operator under sudo, so the checkout gets no root-owned objects.
+git_() { if [ -n "${SUDO_USER:-}" ]; then sudo -u "$SUDO_USER" git "$@"; else git "$@"; fi; }
+cd "$(git_ rev-parse --show-toplevel)"
 out=$(realpath -m "${2:-output}")
 
-[ "$(id -u)" = 0 ] || { echo "run as root: osbuild needs real root, not rootless podman" >&2; exit 1; }
-[ -z "$(git status --porcelain)" ] || { echo "the tree is not clean" >&2; exit 1; }
-git fetch -q origin main --tags
-if ! git merge-base --is-ancestor HEAD origin/main && ! git describe --exact-match --match 'v*' HEAD >/dev/null 2>&1; then
-    echo "HEAD is neither on origin/main nor a v* tag" >&2
-    exit 1
+[ -z "$(git_ status --porcelain)" ] || { echo "the tree is not clean" >&2; exit 1; }
+git_ fetch -q origin main
+head=$(git_ rev-parse HEAD)
+if ! git_ merge-base --is-ancestor "$head" origin/main; then
+    # A tag counts only as origin has it: a tag made here proves nothing.
+    tag=$(git_ describe --tags --exact-match --match 'v*' "$head" 2>/dev/null) || tag=
+    remote=$([ -z "$tag" ] || git_ ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}" \
+        | awk '{ sha = $1 } /\^\{\}$/ { peeled = $1 } END { print (peeled != "") ? peeled : sha }')
+    if [ -z "$tag" ] || [ "$remote" != "$head" ]; then
+        echo "HEAD is neither on origin/main nor a v* tag that origin has at HEAD" >&2
+        exit 1
+    fi
 fi
 
 work=$(mktemp -d)

@@ -20,7 +20,10 @@ Copied host-to-host from Lotor, and never through git: the files under
 
 ## Rebuilding it
 
-The `scripts/disk.sh` raw is 10 GiB and Linode refuses images over 6 GiB, so it is
+Build the raw on a host with root, podman, curl and git, from a clean main or
+v* checkout: `sudo scripts/disk.sh sha256:<signed digest>`. It fetches cosign
+v2.6.5 itself and writes `output/image/disk.raw.gz` beside `SOURCE` and
+`SHA256SUM`. The raw is 10 GiB and Linode refuses images over 6 GiB, so it is
 written straight onto a raw disk:
 
 1. Create a Debian disk (5 GiB, root key in `authorized_keys`) and a raw disk
